@@ -14,7 +14,13 @@ function toCdnAssetUrl(path) {
 		return path;
 	}
 
-	return new URL(path.replace(/^\/?post\//, '').normalize('NFC'), assetsBaseUrl).toString();
+	return new URL(
+		path
+			.replace(/^\/+/, '')
+			.replace(/^post\//, '')
+			.normalize('NFC'),
+		assetsBaseUrl
+	).toString();
 }
 
 const posts = (await getCollection('blog'))

@@ -11,7 +11,7 @@ function getImageClassName(type: string) {
 const base = import.meta.env.PUBLIC_ASSETS_BASE_URL;
 
 function toRelativeAssetPath(value: string) {
-	return value.replace(/^\//, '').normalize('NFC');
+	return value.replace(/^\/?post\//, '').normalize('NFC');
 }
 
 function isAbsoluteOrExternalPath(value: string) {

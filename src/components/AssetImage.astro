@@ -4,7 +4,7 @@ const { src, alt = '', ...rest } = Astro.props;
 const base = import.meta.env.PUBLIC_ASSETS_BASE_URL;
 
 function toRelativeAssetPath(value = '') {
-	return value.replace(/^\//, '').normalize('NFC');
+	return value.replace(/^\/?post\//, '').normalize('NFC');
 }
 
 function isAbsoluteOrExternalPath(value = '') {

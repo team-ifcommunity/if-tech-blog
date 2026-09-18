@@ -134,21 +134,23 @@ type CreatePostBody = {
   
     const heroImage = `/${now.getFullYear()}/${category}/${month}-${day}/${safeSlug}/assets/images/thumbnail.png`;
   
-    const mdx = `---
-  title: '${escapeYamlString(title)}'
-  description: '${escapeYamlString(description)}'
-  isWarning: ${isWarning}
-  pubDate: '${pubDate}'
-  heroImage: '${heroImage}'
-  category: '${escapeYamlString(category)}'
-  author: '${escapeYamlString(author)}'
-  slug: '${safeSlug}'
-  ---
-  
-  import AssetImage from '@/components/AssetImage.astro';
-  
-  ${content.trim()}
-  `;
+    const mdx = [
+        '---',
+        `title: '${escapeYamlString(title)}'`,
+        `description: '${escapeYamlString(description)}'`,
+        `isWarning: ${isWarning}`,
+        `pubDate: '${pubDate}'`,
+        `heroImage: '${heroImage}'`,
+        `category: '${escapeYamlString(category)}'`,
+        `author: '${escapeYamlString(author)}'`,
+        `slug: '${safeSlug}'`,
+        '---',
+        '',
+        `import AssetImage from '@/components/AssetImage.astro';`,
+        '',
+        content.trim(),
+        '',
+      ].join('\n');
   
     const checkResponse = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(

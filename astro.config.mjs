@@ -6,6 +6,8 @@ import astrobook from 'astrobook';
 import tailwindcss from '@tailwindcss/vite';
 import rehypePostAssetPaths from './src/utils/rehypePostAssetPaths.mjs';
 
+import { fileURLToPath } from 'node:url';
+
 // https://astro.build/config
 // https://www.freecodecamp.org/news/how-to-add-google-analytics-to-your-astro-website/
 export default defineConfig({
@@ -14,12 +16,17 @@ export default defineConfig({
 	markdown: {
 		rehypePlugins: [rehypePostAssetPaths]
 	},
-	vite: {
+	vite: { 
 		plugins: [tailwindcss()],
 		server: {
 			// Multiple dev servers corrupt Astro's shared content cache during MDX updates.
 			strictPort: true
-		}
+		},
+		resolve: {
+			alias: {
+				'@': fileURLToPath(new URL('./src', import.meta.url)),
+			},  
+		},
 	},
 	integrations: [
 		mdx(),

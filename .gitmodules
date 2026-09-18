@@ -1,4 +1,4 @@
 [submodule "public/post"]
-	path = public/post
-	url = https://github.com/Plush777/if-tech-blog-assets.git
-	branch = main
+    path = public/post
+    url = https://github.com/team-ifcommunity/if-tech-blog-assets.git
+    branch = main

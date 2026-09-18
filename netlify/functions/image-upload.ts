@@ -20,7 +20,9 @@ type ImageUploadBody = {
 function jsonResponse(body: Record<string, unknown>, status: number) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+    },
   });
 }
 
@@ -35,7 +37,11 @@ function getSeoulDateParts() {
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? '';
 
-  return { year: value('year'), month: value('month'), day: value('day') };
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+  };
 }
 
 function normalizeSlug(value: string) {
@@ -64,19 +70,42 @@ function getExtension(fileName: string): AllowedExtension | null {
   const match = fileName.trim().toLowerCase().match(/\.([a-z0-9]+)$/);
   const extension = match?.[1] as AllowedExtension | undefined;
 
-  return extension && extension in ALLOWED_FILE_TYPES ? extension : null;
+  return extension && extension in ALLOWED_FILE_TYPES
+    ? extension
+    : null;
 }
 
-function hasValidSignature(bytes: Buffer, extension: AllowedExtension) {
+function hasValidSignature(
+  bytes: Buffer,
+  extension: AllowedExtension,
+) {
   if (extension === 'png') {
     return (
       bytes.length >= 8 &&
-      bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      bytes
+        .subarray(0, 8)
+        .equals(
+          Buffer.from([
+            0x89,
+            0x50,
+            0x4e,
+            0x47,
+            0x0d,
+            0x0a,
+            0x1a,
+            0x0a,
+          ]),
+        )
     );
   }
 
   if (extension === 'jpg' || extension === 'jpeg') {
-    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    return (
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff
+    );
   }
 
   return (
@@ -86,27 +115,55 @@ function hasValidSignature(bytes: Buffer, extension: AllowedExtension) {
   );
 }
 
-function githubContentUrl(owner: string, repo: string, filePath: string) {
+function githubContentUrl(
+  owner: string,
+  repo: string,
+  filePath: string,
+) {
   const encodedPath = filePath
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/');
 
-  return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`;
+  return `https://api.github.com/repos/${encodeURIComponent(
+    owner,
+  )}/${encodeURIComponent(repo)}/contents/${encodedPath}`;
 }
 
 export default async (request: Request) => {
   if (request.method !== 'POST') {
-    return jsonResponse({ ok: false, message: 'POST 요청만 허용됩니다.' }, 405);
+    return jsonResponse(
+      {
+        ok: false,
+        message: 'POST 요청만 허용됩니다.',
+      },
+      405,
+    );
   }
 
   const token = process.env.GITHUB_TOKEN;
-  const owner = process.env.GITHUB_OWNER;
-  const repo = process.env.GITHUB_REPO;
-  const branch = process.env.GITHUB_BRANCH || 'main';
+
+  const owner =
+    process.env.GITHUB_ASSETS_OWNER ||
+    'team-ifcommunity';
+
+  const repo =
+    process.env.GITHUB_ASSETS_REPO ||
+    'if-tech-blog-assets';
+
+  const branch =
+    process.env.GITHUB_ASSETS_BRANCH ||
+    'main';
 
   if (!token || !owner || !repo) {
-    return jsonResponse({ ok: false, message: 'GitHub 환경변수가 설정되지 않았습니다.' }, 500);
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          'GitHub Assets 환경변수가 설정되지 않았습니다.',
+      },
+      500,
+    );
   }
 
   let body: ImageUploadBody;
@@ -114,71 +171,185 @@ export default async (request: Request) => {
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ ok: false, message: 'JSON 형식이 올바르지 않습니다.' }, 400);
+    return jsonResponse(
+      {
+        ok: false,
+        message: 'JSON 형식이 올바르지 않습니다.',
+      },
+      400,
+    );
   }
 
-  const fileName = typeof body.fileName === 'string' ? body.fileName : '';
-  const mimeType = typeof body.mimeType === 'string' ? body.mimeType.toLowerCase() : '';
-  const contentBase64 = typeof body.contentBase64 === 'string' ? body.contentBase64 : '';
-  const category = normalizeCategory(typeof body.category === 'string' ? body.category : '');
-  const slug = normalizeSlug(typeof body.slug === 'string' ? body.slug : '');
+  const fileName =
+    typeof body.fileName === 'string'
+      ? body.fileName
+      : '';
+
+  const mimeType =
+    typeof body.mimeType === 'string'
+      ? body.mimeType.toLowerCase()
+      : '';
+
+  const contentBase64 =
+    typeof body.contentBase64 === 'string'
+      ? body.contentBase64
+      : '';
+
+  const category = normalizeCategory(
+    typeof body.category === 'string'
+      ? body.category
+      : '',
+  );
+
+  const slug = normalizeSlug(
+    typeof body.slug === 'string'
+      ? body.slug
+      : '',
+  );
+
   const extension = getExtension(fileName);
 
-  if (!extension || ALLOWED_FILE_TYPES[extension] !== mimeType) {
+  if (
+    !extension ||
+    ALLOWED_FILE_TYPES[extension] !== mimeType
+  ) {
     return jsonResponse(
-      { ok: false, message: 'png, jpg, jpeg, webp 형식의 이미지만 업로드할 수 있습니다.' },
+      {
+        ok: false,
+        message:
+          'png, jpg, jpeg, webp 형식의 이미지만 업로드할 수 있습니다.',
+      },
       400,
     );
   }
 
   if (!isValidCategory(category)) {
-    return jsonResponse({ ok: false, message: '카테고리 값이 올바르지 않습니다.' }, 400);
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          '카테고리 값이 올바르지 않습니다.',
+      },
+      400,
+    );
   }
 
   if (!isValidSlug(slug)) {
     return jsonResponse(
-      { ok: false, message: 'URL 이름은 영문 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다.' },
+      {
+        ok: false,
+        message:
+          'URL 이름은 영문 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다.',
+      },
       400,
     );
   }
 
-  if (!contentBase64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64)) {
-    return jsonResponse({ ok: false, message: '이미지 데이터가 올바르지 않습니다.' }, 400);
-  }
-
-  const fileBytes = Buffer.from(contentBase64, 'base64');
-
-  if (fileBytes.length === 0 || fileBytes.length > MAX_FILE_SIZE) {
-    return jsonResponse({ ok: false, message: '이미지 크기는 3MB 이하여야 합니다.' }, 413);
-  }
-
-  if (!hasValidSignature(fileBytes, extension)) {
+  if (
+    !contentBase64 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(
+      contentBase64,
+    )
+  ) {
     return jsonResponse(
-      { ok: false, message: '파일 내용과 이미지 형식이 일치하지 않습니다.' },
+      {
+        ok: false,
+        message:
+          '이미지 데이터가 올바르지 않습니다.',
+      },
       400,
     );
   }
 
-  const { year, month, day } = getSeoulDateParts();
-  const filePath = `public/post/${year}/${category}/${month}-${day}/${slug}/assets/images/thumbnail.${extension}`;
-  const imagePath = `/post/${year}/${category}/${month}-${day}/${slug}/assets/images/thumbnail.${extension}`;
-  const contentUrl = githubContentUrl(owner, repo, filePath);
+  const fileBytes = Buffer.from(
+    contentBase64,
+    'base64',
+  );
+
+  if (
+    fileBytes.length === 0 ||
+    fileBytes.length > MAX_FILE_SIZE
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          '이미지 크기는 3MB 이하여야 합니다.',
+      },
+      413,
+    );
+  }
+
+  if (
+    !hasValidSignature(
+      fileBytes,
+      extension,
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          '파일 내용과 이미지 형식이 일치하지 않습니다.',
+      },
+      400,
+    );
+  }
+
+  const { year, month, day } =
+    getSeoulDateParts();
+
+  /**
+   * 중요:
+   * if-tech-blog-assets 저장소 자체가
+   * 메인 프로젝트의 public/post 위치에
+   * submodule로 연결되어 있으므로
+   *
+   * 여기서는 public/post를 붙이지 않습니다.
+   */
+  const filePath =
+    `${year}/${category}/${month}-${day}/${slug}` +
+    `/assets/images/thumbnail.${extension}`;
+
+  /**
+   * 실제 Astro/브라우저에서 사용할 경로는
+   * public/post 기준이므로 /post/... 형태를 유지합니다.
+   */
+  const imagePath =
+    `/post/${year}/${category}/${month}-${day}/${slug}` +
+    `/assets/images/thumbnail.${extension}`;
+
+  const contentUrl = githubContentUrl(
+    owner,
+    repo,
+    filePath,
+  );
+
   const githubHeaders = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
   };
 
-  const checkResponse = await fetch(`${contentUrl}?ref=${encodeURIComponent(branch)}`, {
-    headers: githubHeaders,
-  });
+  /**
+   * 동일 파일 존재 여부 확인
+   */
+  const checkResponse = await fetch(
+    `${contentUrl}?ref=${encodeURIComponent(
+      branch,
+    )}`,
+    {
+      headers: githubHeaders,
+    },
+  );
 
   if (checkResponse.ok) {
     return jsonResponse(
       {
         ok: true,
         alreadyExists: true,
-        message: '같은 경로의 썸네일이 이미 있어 기존 이미지를 사용합니다.',
+        message:
+          '같은 경로의 썸네일이 이미 있어 기존 이미지를 사용합니다.',
         filePath,
         imagePath,
       },
@@ -187,27 +358,53 @@ export default async (request: Request) => {
   }
 
   if (checkResponse.status !== 404) {
-    const github = await checkResponse.json().catch(() => null);
+    const github = await checkResponse
+      .json()
+      .catch(() => null);
+
     return jsonResponse(
-      { ok: false, message: 'GitHub 이미지 확인 중 오류가 발생했습니다.', github },
+      {
+        ok: false,
+        message:
+          'GitHub 이미지 확인 중 오류가 발생했습니다.',
+        github,
+      },
       checkResponse.status,
     );
   }
 
-  const createResponse = await fetch(contentUrl, {
-    method: 'PUT',
-    headers: { ...githubHeaders, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: `assets: add thumbnail for ${slug}`,
-      content: contentBase64,
-      branch,
-    }),
-  });
-  const result = await createResponse.json().catch(() => null);
+  /**
+   * GitHub Assets 저장소에 이미지 생성
+   */
+  const createResponse = await fetch(
+    contentUrl,
+    {
+      method: 'PUT',
+      headers: {
+        ...githubHeaders,
+        'Content-Type':
+          'application/json',
+      },
+      body: JSON.stringify({
+        message: `assets: add thumbnail for ${slug}`,
+        content: contentBase64,
+        branch,
+      }),
+    },
+  );
+
+  const result = await createResponse
+    .json()
+    .catch(() => null);
 
   if (!createResponse.ok) {
     return jsonResponse(
-      { ok: false, message: 'GitHub에 이미지를 저장하지 못했습니다.', github: result },
+      {
+        ok: false,
+        message:
+          'GitHub에 이미지를 저장하지 못했습니다.',
+        github: result,
+      },
       createResponse.status,
     );
   }
@@ -218,8 +415,10 @@ export default async (request: Request) => {
       message: '썸네일 업로드 성공',
       filePath,
       imagePath,
-      commitSha: result?.commit?.sha,
-      fileUrl: result?.content?.html_url,
+      commitSha:
+        result?.commit?.sha,
+      fileUrl:
+        result?.content?.html_url,
     },
     201,
   );

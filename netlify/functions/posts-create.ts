@@ -6,6 +6,7 @@ type CreatePostBody = {
     content: string;
     author?: string;
     isWarning?: boolean;
+    heroImage: string;
   };
   
   function sanitizeFileName(value: string) {
@@ -17,6 +18,16 @@ type CreatePostBody = {
   
   function escapeYamlString(value: string) {
     return value.replace(/'/g, "''");
+  }
+
+  function isValidHeroImage(value: string, category: string, slug: string) {
+    const escapedCategory = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(
+      `^/post/\\d{4}/${escapedCategory}/\\d{2}-\\d{2}/${escapedSlug}/assets/images/thumbnail\\.(?:png|jpg|jpeg|webp)$`,
+    );
+
+    return pattern.test(value);
   }
   
   export default async (request: Request) => {
@@ -82,14 +93,15 @@ type CreatePostBody = {
       content,
       author = 'CMS 작성자',
       isWarning = false,
+      heroImage,
     } = body;
   
-    if (!title || !description || !category || !slug || !content) {
+    if (!title || !description || !category || !slug || !content || !heroImage) {
       return new Response(
         JSON.stringify({
           ok: false,
           message:
-            'title, description, category, slug, content는 필수입니다.',
+            'title, description, category, slug, content, heroImage는 필수입니다.',
         }),
         {
           status: 400,
@@ -99,13 +111,6 @@ type CreatePostBody = {
         },
       );
     }
-  
-    const now = new Date();
-  
-    const pubDate = now.toISOString().slice(0, 10);
-  
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
   
     const safeSlug = slug
       .trim()
@@ -128,11 +133,27 @@ type CreatePostBody = {
         },
       );
     }
+
+    if (!isValidHeroImage(heroImage, category.trim().normalize('NFC'), safeSlug)) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          message: '먼저 썸네일을 업로드한 뒤 게시해 주세요.',
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+    }
+
+    const heroImageParts = heroImage.split('/');
+    const pubDate = `${heroImageParts[2]}-${heroImageParts[4]}`;
   
     const fileName = `${sanitizeFileName(title)}.mdx`;
     const filePath = `src/content/blog/${fileName}`;
-  
-    const heroImage = `/${now.getFullYear()}/${category}/${month}-${day}/${safeSlug}/assets/images/thumbnail.png`;
   
     const mdx = [
         '---',

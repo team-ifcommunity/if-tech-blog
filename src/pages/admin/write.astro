@@ -98,6 +98,37 @@ const categories = ['AI', '회고'];
 					<div class="write-form__section-heading">
 						<span>2</span>
 						<div>
+							<h2>썸네일</h2>
+							<p>글 목록과 상세 화면에 사용할 대표 이미지를 선택해 주세요.</p>
+						</div>
+					</div>
+
+					<label class="field field--wide">
+						<span class="field__label">썸네일 이미지 <b>필수</b></span>
+						<span class="thumbnail-upload">
+							<input
+								type="file"
+								name="thumbnail"
+								id="thumbnail-input"
+								accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+								required
+							/>
+							<span class="thumbnail-upload__button">파일 선택</span>
+							<span class="thumbnail-upload__name" id="thumbnail-name">선택된 파일 없음</span>
+						</span>
+						<span class="field__help">PNG, JPG, JPEG, WEBP · 최대 3MB</span>
+						<span class="field__error" id="thumbnail-error" hidden></span>
+					</label>
+
+					<div class="thumbnail-preview" id="thumbnail-preview" hidden>
+						<img id="thumbnail-preview-image" src="" alt="선택한 썸네일 미리보기" />
+					</div>
+				</div>
+
+				<div class="write-form__section">
+					<div class="write-form__section-heading">
+						<span>3</span>
+						<div>
 							<h2>본문</h2>
 							<p>마크다운 문법으로 글을 작성해 주세요.</p>
 						</div>
@@ -143,9 +174,43 @@ const categories = ['AI', '회고'];
 	const formMessage = document.querySelector<HTMLDivElement>('#form-message');
 	const description = form?.elements.namedItem('description') as HTMLTextAreaElement | null;
 	const descriptionCount = document.querySelector<HTMLSpanElement>('#description-count');
+	const thumbnailInput = document.querySelector<HTMLInputElement>('#thumbnail-input');
+	const thumbnailName = document.querySelector<HTMLSpanElement>('#thumbnail-name');
+	const thumbnailError = document.querySelector<HTMLSpanElement>('#thumbnail-error');
+	const thumbnailPreview = document.querySelector<HTMLDivElement>('#thumbnail-preview');
+	const thumbnailPreviewImage = document.querySelector<HTMLImageElement>('#thumbnail-preview-image');
+	const allowedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+	const allowedImageExtensions = new Set(['png', 'jpg', 'jpeg', 'webp']);
+	const maxFileSize = 3 * 1024 * 1024;
+	let previewUrl = '';
 
 	description?.addEventListener('input', () => {
 		if (descriptionCount) descriptionCount.textContent = String(description.value.length);
+	});
+
+	thumbnailInput?.addEventListener('change', () => {
+		const file = thumbnailInput.files?.[0];
+		clearThumbnailError();
+		clearPreview();
+
+		if (!file) {
+			if (thumbnailName) thumbnailName.textContent = '선택된 파일 없음';
+			return;
+		}
+
+		if (thumbnailName) thumbnailName.textContent = `${file.name} · ${formatFileSize(file.size)}`;
+		const validationMessage = validateThumbnail(file);
+
+		if (validationMessage) {
+			showThumbnailError(validationMessage);
+			thumbnailInput.value = '';
+			if (thumbnailName) thumbnailName.textContent = '선택된 파일 없음';
+			return;
+		}
+
+		previewUrl = URL.createObjectURL(file);
+		if (thumbnailPreviewImage) thumbnailPreviewImage.src = previewUrl;
+		if (thumbnailPreview) thumbnailPreview.hidden = false;
 	});
 
 	form?.addEventListener('submit', async (event) => {
@@ -154,6 +219,20 @@ const categories = ['AI', '회고'];
 		if (!form.reportValidity() || !submitButton || !formMessage) return;
 
 		const data = new FormData(form);
+		const thumbnail = thumbnailInput?.files?.[0];
+		if (!thumbnail) {
+			showThumbnailError('썸네일 이미지를 선택해 주세요.');
+			showMessage('썸네일 이미지를 선택해 주세요.', 'error');
+			return;
+		}
+
+		const thumbnailValidationMessage = validateThumbnail(thumbnail);
+		if (thumbnailValidationMessage) {
+			showThumbnailError(thumbnailValidationMessage);
+			showMessage(thumbnailValidationMessage, 'error');
+			return;
+		}
+
 		const payload = {
 			title: String(data.get('title') ?? '').trim(),
 			description: String(data.get('description') ?? '').trim(),
@@ -172,20 +251,46 @@ const categories = ['AI', '회고'];
 		formMessage.hidden = true;
 
 		try {
-			const response = await fetch('/.netlify/functions/posts-create', {
+			setLoadingMessage('썸네일 업로드 중…');
+			const contentBase64 = await fileToBase64(thumbnail);
+			const uploadResponse = await fetch('/.netlify/functions/image-upload', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(payload)
+				body: JSON.stringify({
+					fileName: thumbnail.name,
+					mimeType: thumbnail.type,
+					contentBase64,
+					category: payload.category,
+					slug: payload.slug
+				})
 			});
-			const result = await response.json().catch(() => ({}));
+			const uploadResult = await uploadResponse.json().catch(() => ({}));
 
-			if (!response.ok || !result.ok) {
-				throw new Error(result.message || '게시 중 오류가 발생했습니다.');
+			if (!uploadResponse.ok || !uploadResult.ok || !uploadResult.imagePath) {
+				throw new Error(uploadResult.message || '썸네일 업로드 중 오류가 발생했습니다.');
+			}
+
+			setLoadingMessage('게시글 생성 중…');
+			const postResponse = await fetch('/.netlify/functions/posts-create', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ...payload, heroImage: uploadResult.imagePath })
+			});
+			const postResult = await postResponse.json().catch(() => ({}));
+
+			if (!postResponse.ok || !postResult.ok) {
+				throw new Error(
+					postResult.message ||
+						'썸네일은 업로드되었지만 게시글 생성 중 오류가 발생했습니다. 다시 시도해 주세요.'
+				);
 			}
 
 			showMessage('게시글이 정상적으로 접수되었습니다. 배포가 완료되면 블로그에 표시됩니다.', 'success');
 			form.reset();
 			if (descriptionCount) descriptionCount.textContent = '0';
+			if (thumbnailName) thumbnailName.textContent = '선택된 파일 없음';
+			clearThumbnailError();
+			clearPreview();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : '게시 중 오류가 발생했습니다.';
 			showMessage(message, 'error');
@@ -199,6 +304,60 @@ const categories = ['AI', '회고'];
 		submitButton.disabled = isSubmitting;
 		submitButton.querySelector<HTMLElement>('.button__label')!.hidden = isSubmitting;
 		submitButton.querySelector<HTMLElement>('.button__loading')!.hidden = !isSubmitting;
+	}
+
+	function setLoadingMessage(message: string) {
+		const loadingLabel = submitButton?.querySelector<HTMLElement>('.button__loading');
+		if (loadingLabel) loadingLabel.textContent = message;
+	}
+
+	function validateThumbnail(file: File) {
+		const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+		if (!allowedImageTypes.has(file.type) || !allowedImageExtensions.has(extension)) {
+			return 'PNG, JPG, JPEG, WEBP 형식의 이미지만 업로드할 수 있습니다.';
+		}
+		if (file.size === 0) return '비어 있는 파일은 업로드할 수 없습니다.';
+		if (file.size > maxFileSize) return '썸네일 이미지 크기는 3MB 이하여야 합니다.';
+		return '';
+	}
+
+	function fileToBase64(file: File) {
+		return new Promise<string>((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				const result = typeof reader.result === 'string' ? reader.result : '';
+				const contentBase64 = result.split(',')[1];
+				if (contentBase64) resolve(contentBase64);
+				else reject(new Error('이미지 파일을 읽지 못했습니다.'));
+			};
+			reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했습니다.'));
+			reader.readAsDataURL(file);
+		});
+	}
+
+	function showThumbnailError(message: string) {
+		if (!thumbnailError) return;
+		thumbnailError.textContent = message;
+		thumbnailError.hidden = false;
+	}
+
+	function clearThumbnailError() {
+		if (!thumbnailError) return;
+		thumbnailError.textContent = '';
+		thumbnailError.hidden = true;
+	}
+
+	function clearPreview() {
+		if (previewUrl) URL.revokeObjectURL(previewUrl);
+		previewUrl = '';
+		if (thumbnailPreviewImage) thumbnailPreviewImage.removeAttribute('src');
+		if (thumbnailPreview) thumbnailPreview.hidden = true;
+	}
+
+	function formatFileSize(bytes: number) {
+		return bytes < 1024 * 1024
+			? `${Math.ceil(bytes / 1024)}KB`
+			: `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 	}
 
 	function showMessage(message: string, type: 'success' | 'error') {
@@ -370,6 +529,76 @@ const categories = ['AI', '회고'];
 		font-size: 0.8125rem;
 		line-height: 1.5;
 		color: #777d86;
+	}
+
+	.field__error {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		line-height: 1.5;
+		color: #a51c2c;
+	}
+
+	.thumbnail-upload {
+		display: flex;
+		align-items: center;
+		min-height: 50px;
+		border: 1px solid #d9dce1;
+		border-radius: 9px;
+		overflow: hidden;
+		background: white;
+		cursor: pointer;
+		transition: border-color 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.thumbnail-upload:focus-within {
+		border-color: var(--primary1);
+		box-shadow: 0 0 0 3px rgba(229, 45, 66, 0.12);
+	}
+
+	.thumbnail-upload input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.thumbnail-upload__button {
+		align-self: stretch;
+		display: inline-flex;
+		align-items: center;
+		padding: 0 18px;
+		background: #f1f2f4;
+		font-size: 0.875rem;
+		font-weight: 650;
+		color: var(--c333);
+		white-space: nowrap;
+	}
+
+	.thumbnail-upload__name {
+		min-width: 0;
+		padding: 0 15px;
+		overflow: hidden;
+		font-size: 0.9375rem;
+		color: #777d86;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.thumbnail-preview {
+		margin-top: 22px;
+		padding: 12px;
+		border: 1px solid #e7e7e7;
+		border-radius: 12px;
+		background: #f7f8f9;
+	}
+
+	.thumbnail-preview img {
+		display: block;
+		width: 100%;
+		max-height: 420px;
+		border-radius: 8px;
+		object-fit: contain;
 	}
 
 	.field__counter {

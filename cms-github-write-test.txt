@@ -1,4 +1,0 @@
-CMS GitHub write test
-
-Created at: 2026-09-18T04:30:21.215Z
-This file was created by a Netlify Function.

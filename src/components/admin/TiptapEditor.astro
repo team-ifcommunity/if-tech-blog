@@ -80,12 +80,28 @@
 </div>
 
 <script>
-	import { Editor } from '@tiptap/core';
+	import { Editor, Node } from '@tiptap/core';
 	import Image from '@tiptap/extension-image';
 	import Placeholder from '@tiptap/extension-placeholder';
 	import StarterKit from '@tiptap/starter-kit';
 	import { fileToBase64, validateImageFile } from '@/utils/imageUpload';
 	import { serializeTiptapToMarkdown } from '@/utils/tiptapMarkdown.mjs';
+	import { parseMarkdownForTiptap } from '@/utils/markdownToTiptap.mjs';
+
+	const RawMdx = Node.create({
+		name: 'rawMdx',
+		group: 'block',
+		atom: true,
+		addAttributes() {
+			return { value: { default: '' } };
+		},
+		parseHTML() {
+			return [{ tag: 'pre[data-raw-mdx]' }];
+		},
+		renderHTML({ node }) {
+			return ['pre', { 'data-raw-mdx': '', class: 'raw-mdx' }, node.attrs.value];
+		}
+	});
 
 	const AssetImage = Image.extend({
 		addAttributes() {
@@ -132,8 +148,7 @@
 			element: content,
 			extensions: [
 				StarterKit.configure({
-					heading: { levels: [2, 3] },
-					horizontalRule: false,
+					heading: { levels: [1, 2, 3] },
 					link: {
 						autolink: true,
 						linkOnPaste: true,
@@ -146,6 +161,7 @@
 					strike: false,
 					underline: false
 				}),
+				RawMdx,
 				Placeholder.configure({ placeholder: '내용을 입력하세요.' }),
 				AssetImage.configure({
 					inline: false,
@@ -165,6 +181,13 @@
 		editor.on('update', ({ editor }) => syncValue(editor));
 		editor.on('selectionUpdate', ({ editor }) => updateToolbar(editor));
 		editor.on('transaction', ({ editor }) => updateToolbar(editor));
+		root.addEventListener('editor:set-content', (event) => {
+			const content = (event as CustomEvent<{ content?: string }>).detail?.content ?? '';
+			const document = parseMarkdownForTiptap(content);
+			applyImagePreviewUrls(document);
+			editor.commands.setContent(document);
+			syncValue(editor);
+		});
 		syncValue(editor);
 		updateToolbar(editor);
 
@@ -302,10 +325,29 @@
 		});
 
 		function syncValue(currentEditor: Editor) {
-			const markdown = currentEditor.getText().trim()
-				? serializeTiptapToMarkdown(currentEditor.state.doc)
-				: '';
+			const markdown = currentEditor.isEmpty
+				? ''
+				: serializeTiptapToMarkdown(currentEditor.state.doc);
 			value.value = markdown;
+		}
+
+		function applyImagePreviewUrls(node: {
+			type?: string;
+			attrs?: Record<string, unknown>;
+			content?: Array<any>;
+		}) {
+			if (node.type === 'image' && typeof node.attrs?.assetSrc === 'string') {
+				const base = import.meta.env.PUBLIC_ASSETS_BASE_URL;
+				if (base)
+					node.attrs.src = new URL(
+						node.attrs.assetSrc
+							.replace(/^\/+/, '')
+							.replace(/^post\//, '')
+							.normalize('NFC'),
+						`${base.replace(/\/+$/, '')}/`
+					).toString();
+			}
+			node.content?.forEach(applyImagePreviewUrls);
 		}
 
 		function openImagePicker() {

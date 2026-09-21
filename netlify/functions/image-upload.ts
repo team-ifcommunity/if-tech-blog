@@ -18,6 +18,7 @@ type ImageUploadBody = {
   contentBase64: string;
   category: string;
   slug: string;
+  overwrite?: boolean;
 };
 
 function jsonResponse(body: Record<string, unknown>, status: number) {
@@ -366,6 +367,8 @@ export default async (request: Request) => {
     },
   );
 
+  let existingSha: string | undefined;
+
   if (checkResponse.ok) {
     if (uploadType === 'content') {
       return jsonResponse(
@@ -377,20 +380,31 @@ export default async (request: Request) => {
       );
     }
 
-    return jsonResponse(
-      {
-        ok: true,
-        alreadyExists: true,
-        message:
-          '같은 경로의 썸네일이 이미 있어 기존 이미지를 사용합니다.',
-        filePath,
-        imagePath,
-      },
-      200,
-    );
+    if (!body.overwrite) {
+      return jsonResponse(
+        {
+          ok: true,
+          alreadyExists: true,
+          message:
+            '같은 경로의 썸네일이 이미 있어 기존 이미지를 사용합니다.',
+          filePath,
+          imagePath,
+        },
+        200,
+      );
+    }
+
+    const existing = await checkResponse.json().catch(() => null);
+    existingSha = existing?.sha;
+    if (!existingSha) {
+      return jsonResponse(
+        { ok: false, message: '기존 썸네일 정보를 확인하지 못했습니다.' },
+        502,
+      );
+    }
   }
 
-  if (checkResponse.status !== 404) {
+  if (!checkResponse.ok && checkResponse.status !== 404) {
     const github = await checkResponse
       .json()
       .catch(() => null);
@@ -425,6 +439,7 @@ export default async (request: Request) => {
             : `assets: add content image for ${slug}`,
         content: contentBase64,
         branch,
+        ...(existingSha ? { sha: existingSha } : {}),
       }),
     },
   );

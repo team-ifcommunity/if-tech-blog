@@ -15,6 +15,7 @@ const markdownSerializer = new MarkdownSerializer(
 		},
 		hardBreak: defaultMarkdownSerializer.nodes.hard_break,
 		heading: defaultMarkdownSerializer.nodes.heading,
+		horizontalRule: defaultMarkdownSerializer.nodes.horizontal_rule,
 		image(state, node) {
 			const src = JSON.stringify(node.attrs.assetSrc ?? node.attrs.src ?? '');
 			const alt = JSON.stringify(node.attrs.alt ?? '');
@@ -32,6 +33,10 @@ const markdownSerializer = new MarkdownSerializer(
 			});
 		},
 		paragraph: defaultMarkdownSerializer.nodes.paragraph,
+		rawMdx(state, node) {
+			state.write(node.attrs.value ?? '');
+			state.closeBlock(node);
+		},
 		text: defaultMarkdownSerializer.nodes.text
 	},
 	{

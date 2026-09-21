@@ -1,0 +1,45 @@
+---
+import Template from '@/layouts/Template.astro';
+---
+
+<Template title="관리자" description="기술 블로그 게시글 관리">
+	<main class="admin-page" id="main">
+		<h1>기술 블로그 관리</h1>
+		<div><a href="/admin/posts">기존 글 관리</a><a href="/admin/write">새 글 작성</a></div>
+	</main>
+</Template>
+
+<style>
+	.admin-page {
+		min-height: calc(100vh - 145px);
+		padding: 140px 20px 96px;
+		background: var(--bg1);
+		text-align: center;
+	}
+	.admin-page h1 {
+		margin-bottom: 30px;
+		color: var(--c333);
+		font-size: clamp(2rem, 5vw, 3rem);
+	}
+	.admin-page div {
+		display: flex;
+		justify-content: center;
+		gap: 12px;
+	}
+	.admin-page a {
+		display: inline-flex;
+		align-items: center;
+		height: 50px;
+		padding: 0 22px;
+		border: 1px solid #d9dce1;
+		border-radius: 9px;
+		background: white;
+		color: var(--c333);
+		font-weight: 650;
+	}
+	.admin-page a:first-child {
+		border-color: var(--primary1);
+		background: var(--primary1);
+		color: white;
+	}
+</style>

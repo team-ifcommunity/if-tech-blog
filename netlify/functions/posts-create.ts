@@ -7,6 +7,7 @@ type CreatePostBody = {
     author?: string;
     isWarning?: boolean;
     heroImage: string;
+    pubDate?: string;
   };
   
   function sanitizeFileName(value: string) {
@@ -94,6 +95,7 @@ type CreatePostBody = {
       author = 'CMS 작성자',
       isWarning = false,
       heroImage,
+      pubDate: requestedPubDate,
     } = body;
   
     if (!title || !description || !category || !slug || !content || !heroImage) {
@@ -150,7 +152,9 @@ type CreatePostBody = {
     }
 
     const heroImageParts = heroImage.split('/');
-    const pubDate = `${heroImageParts[2]}-${heroImageParts[4]}`;
+    const pubDate = requestedPubDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedPubDate)
+      ? requestedPubDate
+      : `${heroImageParts[2]}-${heroImageParts[4]}`;
   
     const fileName = `${sanitizeFileName(title)}.mdx`;
     const filePath = `src/content/blog/${fileName}`;

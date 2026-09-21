@@ -1,6 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { json } from './_posts';
-import { putGithubFile, resolveStorageTarget, StorageError, writeLocalAsset } from './_storage';
+import {
+	putGithubFile,
+	resolveStorageTarget,
+	StorageError,
+	type StorageTarget,
+	writeLocalAsset
+} from './_storage';
 
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = {
@@ -65,7 +71,7 @@ export default async (request: Request) => {
 	} catch {
 		return json({ ok: false, message: 'JSON 형식이 올바르지 않습니다.' }, 400);
 	}
-	let target;
+	let target: StorageTarget;
 	try {
 		target = resolveStorageTarget(body.target);
 	} catch (error) {

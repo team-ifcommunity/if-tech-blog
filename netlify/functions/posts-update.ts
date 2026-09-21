@@ -15,6 +15,7 @@ import {
 	readLocalPost,
 	resolveStorageTarget,
 	StorageError,
+	type StorageTarget,
 	writeLocalPost
 } from './_storage';
 
@@ -41,7 +42,7 @@ export default async (request: Request) => {
 	} catch {
 		return json({ ok: false, message: 'JSON 형식이 올바르지 않습니다.' }, 400);
 	}
-	let target;
+	let target: StorageTarget;
 	try {
 		target = resolveStorageTarget(body.target);
 	} catch (error) {

@@ -9,9 +9,12 @@ import {
 	postPath
 } from './_posts';
 import { getStorageMode, isLocalFileStorageAllowed, readLocalPost } from './_storage';
+import { requireAuth } from './_auth';
 
 export default async (request: Request) => {
 	if (request.method !== 'GET') return json({ ok: false, message: 'GET 요청만 허용됩니다.' }, 405);
+	const auth = await requireAuth(request);
+	if ('response' in auth) return auth.response;
 	const file = new URL(request.url).searchParams.get('file')?.normalize('NFC') ?? '';
 	if (!isValidPostFile(file))
 		return json({ ok: false, message: '게시글 파일 경로가 올바르지 않습니다.' }, 400);

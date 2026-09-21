@@ -14,9 +14,12 @@ import {
 	listLocalPostFiles,
 	readLocalPost
 } from './_storage';
+import { requireAuth } from './_auth';
 
 export default async (request: Request) => {
 	if (request.method !== 'GET') return json({ ok: false, message: 'GET 요청만 허용됩니다.' }, 405);
+	const auth = await requireAuth(request);
+	if ('response' in auth) return auth.response;
 	if (getStorageMode() === 'local') {
 		if (!isLocalFileStorageAllowed())
 			return json(

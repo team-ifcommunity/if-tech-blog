@@ -1,6 +1,7 @@
 ---
 import Template from '@/layouts/Template.astro';
 import TiptapEditor from '@/components/admin/TiptapEditor.astro';
+import AdminSessionBar from '@/components/admin/AdminSessionBar.astro';
 
 const categories = ['AI', '회고'];
 const { mode = 'create' } = Astro.props;
@@ -15,6 +16,7 @@ const isEdit = mode === 'edit';
 >
 	<main class="write-page" id="main">
 		<div class="write-page__inner">
+			<AdminSessionBar />
 			<header class="write-page__header">
 				<p class="write-page__eyebrow">IF TECH BLOG</p>
 				<h1>{isEdit ? '기존 글 수정' : '새 글 작성'}</h1>
@@ -89,7 +91,9 @@ const isEdit = mode === 'edit';
 								required
 								autocomplete="name"
 							/>
-							<span class="field__help">로그인 기능을 연결하기 전까지 직접 입력합니다.</span>
+							<span class="field__help" id="author-help"
+								>로컬 개발 모드에서는 직접 수정할 수 있습니다.</span
+							>
 						</label>
 
 						<label class="field">
@@ -229,6 +233,8 @@ const isEdit = mode === 'edit';
 	const titleInput = form?.elements.namedItem('title') as HTMLInputElement | null;
 	const slugInput = form?.elements.namedItem('slug') as HTMLInputElement | null;
 	const description = form?.elements.namedItem('description') as HTMLTextAreaElement | null;
+	const authorInput = form?.elements.namedItem('author') as HTMLInputElement | null;
+	const authorHelp = document.querySelector<HTMLElement>('#author-help');
 	const descriptionCount = document.querySelector<HTMLSpanElement>('#description-count');
 	const thumbnailInput = document.querySelector<HTMLInputElement>('#thumbnail-input');
 	const thumbnailName = document.querySelector<HTMLSpanElement>('#thumbnail-name');
@@ -245,6 +251,13 @@ const isEdit = mode === 'edit';
 	void initialize();
 
 	async function initialize() {
+		const session = await loadSession();
+		if (!session) return;
+		if (authorInput && mode === 'create') authorInput.value = session.userName;
+		if (authorInput && session.authorLocked) {
+			authorInput.readOnly = true;
+			if (authorHelp) authorHelp.textContent = 'Synology 로그인 사용자 이름이 자동으로 적용됩니다.';
+		}
 		try {
 			const response = await fetch('/.netlify/functions/storage-mode');
 			const result = await response.json();
@@ -262,6 +275,22 @@ const isEdit = mode === 'edit';
 		}
 		if (mode === 'edit') await loadPost();
 		else setDefaultPubDate();
+	}
+
+	async function loadSession() {
+		try {
+			const response = await fetch('/.netlify/functions/auth-me', {
+				headers: { Accept: 'application/json' }
+			});
+			const result = await response.json().catch(() => ({}));
+			if (!response.ok || !result.ok || !result.user?.name) throw new Error('로그인이 필요합니다.');
+			return { userName: String(result.user.name), authorLocked: Boolean(result.authorLocked) };
+		} catch {
+			window.location.assign(
+				`/auth/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`
+			);
+			return null;
+		}
 	}
 
 	function setDefaultPubDate() {

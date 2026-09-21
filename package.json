@@ -21,6 +21,7 @@
     "@tiptap/starter-kit": "^3.31.3",
     "astro": "^5.10.0",
     "astro-seo": "^0.8.0",
+    "jose": "^6.2.12",
     "md-block": "^0.0.1",
     "prettier": "^3.6.0",
     "prettier-plugin-astro": "^0.14.1",

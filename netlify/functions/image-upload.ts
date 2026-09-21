@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { json } from './_posts';
+import { requireAuth } from './_auth';
 import {
 	putGithubFile,
 	resolveStorageTarget,
@@ -65,6 +66,8 @@ function hasValidSignature(bytes: Buffer, extension: AllowedExtension) {
 export default async (request: Request) => {
 	if (request.method !== 'POST')
 		return json({ ok: false, message: 'POST 요청만 허용됩니다.' }, 405);
+	const auth = await requireAuth(request);
+	if ('response' in auth) return auth.response;
 	let body: ImageUploadBody;
 	try {
 		body = await request.json();

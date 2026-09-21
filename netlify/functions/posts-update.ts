@@ -18,6 +18,7 @@ import {
 	type StorageTarget,
 	writeLocalPost
 } from './_storage';
+import { getAuthMode, requireAuth } from './_auth';
 
 type UpdateBody = {
 	target?: 'local' | 'github';
@@ -36,12 +37,15 @@ type UpdateBody = {
 
 export default async (request: Request) => {
 	if (request.method !== 'PUT') return json({ ok: false, message: 'PUT 요청만 허용됩니다.' }, 405);
+	const auth = await requireAuth(request);
+	if ('response' in auth) return auth.response;
 	let body: UpdateBody;
 	try {
 		body = await request.json();
 	} catch {
 		return json({ ok: false, message: 'JSON 형식이 올바르지 않습니다.' }, 400);
 	}
+	if (getAuthMode() === 'synology') body.author = auth.user.name;
 	let target: StorageTarget;
 	try {
 		target = resolveStorageTarget(body.target);
@@ -89,6 +93,8 @@ export default async (request: Request) => {
 			existingSource = decodeGithubContent(current.content);
 		}
 		const parsed = parseMdx(existingSource);
+		const existingAuthor =
+			typeof parsed.frontmatter.author === 'string' ? parsed.frontmatter.author.trim() : '';
 		const frontmatter = updateFrontmatter(parsed.frontmatterRaw, {
 			title: body.title!.trim(),
 			description: body.description!.trim(),
@@ -96,7 +102,7 @@ export default async (request: Request) => {
 			pubDate: body.pubDate!,
 			heroImage: body.heroImage!.trim(),
 			category: body.category!.trim(),
-			author: body.author!.trim(),
+			author: getAuthMode() === 'synology' ? existingAuthor || auth.user.name : body.author!.trim(),
 			slug: body.slug!.trim().normalize('NFC').toLowerCase()
 		});
 		const imports = parsed.imports.length

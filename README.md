@@ -172,10 +172,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
 # CMS 로컬 저장과 수동 게시
 
-로컬에서 CMS를 테스트할 때는 `.env.example`을 참고해 `.env`에 다음 값을 설정합니다.
+로컬에서 CMS를 테스트할 때는 커밋되지 않는 로컬 `.env`에 다음 값을 직접 설정합니다.
 
 ```env
 CMS_STORAGE_MODE=local
+CMS_AUTH_MODE=dev
 ```
 
 그 다음 의존성을 설치하고 Netlify Functions와 Astro를 함께 실행합니다.
@@ -196,9 +197,17 @@ Netlify 운영 환경에는 다음 값을 설정합니다.
 
 ```env
 CMS_STORAGE_MODE=github
+CMS_AUTH_MODE=synology
+SYNOLOGY_OIDC_ISSUER=https://<synology-sso-host>
+SYNOLOGY_OIDC_CLIENT_ID=<application-id>
+SYNOLOGY_OIDC_CLIENT_SECRET=<application-secret>
+SYNOLOGY_OIDC_REDIRECT_URI=https://ifcommunity-tech.netlify.app/auth/callback
+CMS_SESSION_SECRET=<32자-이상의-무작위-비밀값>
 ```
 
-운영 모드에서는 GitHub 게시/반영 버튼만 표시되고 기존 GitHub 저장 흐름을 사용합니다. 테스트 순서는 새 글 또는 기존 글을 열어 **로컬 저장** → localhost 확인 → **GitHub에 게시/반영** → 두 저장소의 커밋과 Netlify 배포 확인입니다.
+Synology SSO Server 응용프로그램의 redirect URI에도 `https://ifcommunity-tech.netlify.app/auth/callback`을 정확히 등록합니다. 일반적인 Synology 설정은 issuer metadata로 endpoint를 자동 검색합니다. metadata를 제공하지 않는 구성이라면 `SYNOLOGY_OIDC_AUTHORIZATION_ENDPOINT`, `SYNOLOGY_OIDC_TOKEN_ENDPOINT`, `SYNOLOGY_OIDC_USERINFO_ENDPOINT`, `SYNOLOGY_OIDC_JWKS_URI`를 Netlify에 추가합니다. token endpoint가 HTTP Basic 인증만 받는 경우 `SYNOLOGY_OIDC_TOKEN_AUTH_METHOD=client_secret_basic`도 추가합니다.
+
+운영 모드에서는 GitHub 게시/반영 버튼만 표시되고 기존 GitHub 저장 흐름을 사용합니다. `/admin` 접근 시 Synology 로그인으로 이동하며, 작성자에는 로그인 사용자 이름이 자동 적용됩니다. `CMS_AUTH_MODE=dev`는 `netlify dev`이면서 production이 아닌 경우에만 동작합니다. 테스트 순서는 새 글 또는 기존 글을 열어 **로컬 저장** → localhost 확인 → **GitHub에 게시/반영** → 두 저장소의 커밋과 Netlify 배포 확인입니다.
 
 ## CMS 게시글 삭제
 

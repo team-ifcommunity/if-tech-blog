@@ -1,4 +1,5 @@
 import { getGithubConfig, isValidPostFile, json, triggerNetlifyBuild } from './_posts';
+import { getAuthMode, requireAuth } from './_auth';
 import {
 	publishReferencedLocalAssets,
 	putGithubFile,
@@ -40,6 +41,8 @@ function isValidHeroImage(value: string, category: string, slug: string) {
 export default async (request: Request) => {
 	if (request.method !== 'POST')
 		return json({ ok: false, message: 'POST 요청만 허용됩니다.' }, 405);
+	const auth = await requireAuth(request);
+	if ('response' in auth) return auth.response;
 	let body: CreatePostBody;
 	try {
 		body = await request.json();
@@ -56,7 +59,8 @@ export default async (request: Request) => {
 	const title = body.title?.trim();
 	const description = body.description?.trim();
 	const category = body.category?.trim().normalize('NFC');
-	const author = body.author?.trim() || 'CMS 작성자';
+	const author =
+		getAuthMode() === 'synology' ? auth.user.name : body.author?.trim() || auth.user.name;
 	const content = body.content?.trim();
 	const heroImage = body.heroImage?.trim();
 	const safeSlug = body.slug?.trim().normalize('NFC').toLowerCase();

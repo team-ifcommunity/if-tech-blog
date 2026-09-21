@@ -1,10 +1,12 @@
 ---
 import Template from '@/layouts/Template.astro';
+import AdminSessionBar from '@/components/admin/AdminSessionBar.astro';
 ---
 
 <Template title="게시글 관리" description="기존 기술 블로그 게시글을 찾아 수정합니다.">
 	<main class="posts-page" id="main">
 		<div class="posts-page__inner">
+			<AdminSessionBar />
 			<header class="posts-page__header">
 				<div>
 					<p>IF TECH BLOG</p><h1>게시글 관리</h1><span

@@ -9,3 +9,26 @@
   command = "npm run build"
   publish = "dist"
   functions = "netlify/functions"
+
+[[edge_functions]]
+  function = "admin-auth"
+  path = "/admin"
+
+[[edge_functions]]
+  function = "admin-auth"
+  path = "/admin/*"
+
+[[redirects]]
+  from = "/auth/login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+
+[[redirects]]
+  from = "/auth/callback"
+  to = "/.netlify/functions/auth-callback"
+  status = 200
+
+[[redirects]]
+  from = "/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200

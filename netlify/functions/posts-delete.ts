@@ -18,6 +18,7 @@ import {
 	StorageError,
 	type StorageTarget
 } from './_storage';
+import { requireAuth } from './_auth';
 
 type DeletePostBody = {
 	target?: StorageTarget;
@@ -30,6 +31,8 @@ type GithubConfig = NonNullable<ReturnType<typeof getGithubConfig>>;
 export default async (request: Request) => {
 	if (request.method !== 'DELETE')
 		return json({ ok: false, message: 'DELETE 요청만 허용됩니다.' }, 405);
+	const auth = await requireAuth(request);
+	if ('response' in auth) return auth.response;
 
 	let body: DeletePostBody;
 	try {

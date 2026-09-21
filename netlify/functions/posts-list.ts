@@ -92,6 +92,7 @@ export default async (request: Request) => {
 
 	return json({
 		ok: true,
+		storageMode: 'github',
 		posts: posts
 			.filter(Boolean)
 			.sort((a, b) => String(b?.pubDate).localeCompare(String(a?.pubDate)))

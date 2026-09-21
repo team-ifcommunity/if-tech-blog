@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { contentsUrl, githubHeaders, isValidPostFile, postPath } from './_posts';
 
@@ -62,6 +62,61 @@ export function localAssetFilePath(filePath: string) {
 		throw new StorageError('이미지 저장 경로가 올바르지 않습니다.');
 	}
 	return safePath('public/post', ...normalized.split('/'));
+}
+
+export function postAssetDirectory(values: Record<string, unknown>) {
+	if (
+		typeof values.category !== 'string' ||
+		typeof values.pubDate !== 'string' ||
+		typeof values.slug !== 'string'
+	) {
+		throw new StorageError('게시글 자산 경로 정보가 올바르지 않습니다.', 422);
+	}
+	const category = values.category.trim().normalize('NFC');
+	const pubDate = values.pubDate.trim();
+	const slug = values.slug.trim().normalize('NFC').toLowerCase();
+	if (
+		!category ||
+		category === '.' ||
+		category.includes('..') ||
+		!/^[^/\\\u0000-\u001f\u007f]+$/u.test(category) ||
+		!/^\d{4}-\d{2}-\d{2}$/.test(pubDate) ||
+		!/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug)
+	) {
+		throw new StorageError('게시글 자산 경로 정보가 올바르지 않습니다.', 422);
+	}
+	const [year, month, day] = pubDate.split('-').map(Number);
+	const date = new Date(Date.UTC(year, month - 1, day));
+	if (
+		date.getUTCFullYear() !== year ||
+		date.getUTCMonth() !== month - 1 ||
+		date.getUTCDate() !== day
+	) {
+		throw new StorageError('게시글 게시일이 올바르지 않습니다.', 422);
+	}
+	return `${pubDate.slice(0, 4)}/${category}/${pubDate.slice(5)}/${slug}`;
+}
+
+export function localAssetDirectoryPath(directory: string) {
+	const normalized = directory.replace(/\\/g, '/').normalize('NFC');
+	const segments = normalized.split('/');
+	if (segments.length !== 4) {
+		throw new StorageError('게시글 자산 폴더 경로가 올바르지 않습니다.');
+	}
+	const expected = postAssetDirectory({
+		category: segments[1],
+		pubDate: `${segments[0]}-${segments[2]}`,
+		slug: segments[3]
+	});
+	if (normalized !== expected) throw new StorageError('게시글 자산 폴더 경로가 올바르지 않습니다.');
+	return safePath('public/post', ...segments);
+}
+
+export async function deleteLocalPost(file: string, assetDirectory: string) {
+	const postFile = localPostFilePath(file);
+	const assets = localAssetDirectoryPath(assetDirectory);
+	await unlink(postFile);
+	await rm(assets, { recursive: true, force: true });
 }
 
 export async function readLocalPost(file: string) {

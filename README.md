@@ -199,3 +199,15 @@ CMS_STORAGE_MODE=github
 ```
 
 운영 모드에서는 GitHub 게시/반영 버튼만 표시되고 기존 GitHub 저장 흐름을 사용합니다. 테스트 순서는 새 글 또는 기존 글을 열어 **로컬 저장** → localhost 확인 → **GitHub에 게시/반영** → 두 저장소의 커밋과 Netlify 배포 확인입니다.
+
+## CMS 게시글 삭제
+
+`/admin/posts`의 각 게시글에는 수정과 삭제 작업이 표시됩니다. 삭제 버튼을 누른 뒤 확인 모달에서 삭제 범위와 대상을 다시 확인해야 실제 삭제가 실행됩니다.
+
+- **로컬 삭제**: `CMS_STORAGE_MODE=local`이고 `netlify dev`로 실행한 경우에만 사용할 수 있습니다. 해당 `src/content/blog/*.mdx` 파일과 MDX의 `pubDate`, `category`, `slug`로 계산한 `public/post/{year}/{category}/{MM-DD}/{slug}/` 폴더를 삭제합니다. GitHub API와 Netlify 배포는 호출하지 않습니다.
+- **GitHub에서 삭제**: `if-tech-blog` main 브랜치의 MDX를 SHA 기반 Contents API로 삭제하고, `if-tech-blog-assets`의 동일한 글 자산 폴더 아래 blob을 Git tree 커밋 하나로 제거합니다. GitHub 삭제가 실행된 경우에만 Netlify Build Hook을 호출합니다.
+- 로컬 모드에서는 **로컬 삭제**와 **GitHub에서 삭제**가 별도 버튼으로 표시됩니다. 운영 모드에서는 GitHub 삭제만 표시됩니다.
+
+삭제 함수는 브라우저가 전달한 자산 경로를 사용하지 않습니다. 삭제 직전에 실제 MDX를 읽고 frontmatter를 검증해 자산 경로를 계산하며, 게시글은 `src/content/blog/*.mdx`, 로컬 자산은 `public/post/`, 원격 자산은 해당 글 prefix 밖을 삭제할 수 없도록 제한합니다. 자산 폴더가 이미 없으면 MDX 삭제는 정상 완료됩니다.
+
+로컬 테스트는 테스트 글을 만든 뒤 `/admin/posts`에서 **로컬 삭제**를 실행하고 MDX와 자산 폴더가 모두 사라졌는지 확인합니다. 운영 삭제 테스트는 별도의 테스트 글로 **GitHub에서 삭제**를 실행한 뒤 두 저장소의 삭제 커밋, 관리자 목록 갱신, Netlify 배포 상태를 확인합니다. 운영 삭제는 복구가 어려우므로 대상 글과 모달의 경고를 반드시 확인하세요.

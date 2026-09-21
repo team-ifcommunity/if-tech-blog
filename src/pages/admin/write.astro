@@ -139,7 +139,8 @@ const categories = ['AI', '회고'];
 						<span class="field__label">글 내용 <b>필수</b></span>
 						<TiptapEditor />
 						<span class="field__help"
-							>글자 서식, 소제목, 목록, 인용문, 코드와 링크를 바로 적용할 수 있습니다.</span
+							>글자 서식, 소제목, 목록, 인용문, 코드, 링크와 본문 이미지를 바로 추가할 수
+							있습니다.</span
 						>
 					</div>
 				</div>
@@ -166,6 +167,8 @@ const categories = ['AI', '회고'];
 </Template>
 
 <script>
+	import { fileToBase64, validateImageFile } from '@/utils/imageUpload';
+
 	const form = document.querySelector<HTMLFormElement>('#write-form');
 	const submitButton = document.querySelector<HTMLButtonElement>('#submit-button');
 	const formMessage = document.querySelector<HTMLDivElement>('#form-message');
@@ -176,9 +179,6 @@ const categories = ['AI', '회고'];
 	const thumbnailError = document.querySelector<HTMLSpanElement>('#thumbnail-error');
 	const thumbnailPreview = document.querySelector<HTMLDivElement>('#thumbnail-preview');
 	const thumbnailPreviewImage = document.querySelector<HTMLImageElement>('#thumbnail-preview-image');
-	const allowedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
-	const allowedImageExtensions = new Set(['png', 'jpg', 'jpeg', 'webp']);
-	const maxFileSize = 3 * 1024 * 1024;
 	let previewUrl = '';
 
 	description?.addEventListener('input', () => {
@@ -196,7 +196,7 @@ const categories = ['AI', '회고'];
 		}
 
 		if (thumbnailName) thumbnailName.textContent = `${file.name} · ${formatFileSize(file.size)}`;
-		const validationMessage = validateThumbnail(file);
+		const validationMessage = validateImageFile(file, '썸네일 이미지');
 
 		if (validationMessage) {
 			showThumbnailError(validationMessage);
@@ -223,7 +223,7 @@ const categories = ['AI', '회고'];
 			return;
 		}
 
-		const thumbnailValidationMessage = validateThumbnail(thumbnail);
+		const thumbnailValidationMessage = validateImageFile(thumbnail, '썸네일 이미지');
 		if (thumbnailValidationMessage) {
 			showThumbnailError(thumbnailValidationMessage);
 			showMessage(thumbnailValidationMessage, 'error');
@@ -260,6 +260,7 @@ const categories = ['AI', '회고'];
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
+					type: 'thumbnail',
 					fileName: thumbnail.name,
 					mimeType: thumbnail.type,
 					contentBase64,
@@ -312,30 +313,6 @@ const categories = ['AI', '회고'];
 	function setLoadingMessage(message: string) {
 		const loadingLabel = submitButton?.querySelector<HTMLElement>('.button__loading');
 		if (loadingLabel) loadingLabel.textContent = message;
-	}
-
-	function validateThumbnail(file: File) {
-		const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-		if (!allowedImageTypes.has(file.type) || !allowedImageExtensions.has(extension)) {
-			return 'PNG, JPG, JPEG, WEBP 형식의 이미지만 업로드할 수 있습니다.';
-		}
-		if (file.size === 0) return '비어 있는 파일은 업로드할 수 없습니다.';
-		if (file.size > maxFileSize) return '썸네일 이미지 크기는 3MB 이하여야 합니다.';
-		return '';
-	}
-
-	function fileToBase64(file: File) {
-		return new Promise<string>((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => {
-				const result = typeof reader.result === 'string' ? reader.result : '';
-				const contentBase64 = result.split(',')[1];
-				if (contentBase64) resolve(contentBase64);
-				else reject(new Error('이미지 파일을 읽지 못했습니다.'));
-			};
-			reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했습니다.'));
-			reader.readAsDataURL(file);
-		});
 	}
 
 	function showThumbnailError(message: string) {

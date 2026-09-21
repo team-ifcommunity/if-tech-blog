@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
 const ALLOWED_FILE_TYPES = {
@@ -10,6 +12,7 @@ const ALLOWED_FILE_TYPES = {
 type AllowedExtension = keyof typeof ALLOWED_FILE_TYPES;
 
 type ImageUploadBody = {
+  type?: 'thumbnail' | 'content';
   fileName: string;
   mimeType: string;
   contentBase64: string;
@@ -185,6 +188,21 @@ export default async (request: Request) => {
       ? body.fileName
       : '';
 
+  const uploadType = body.type ?? 'thumbnail';
+
+  if (
+    uploadType !== 'thumbnail' &&
+    uploadType !== 'content'
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message: '이미지 업로드 유형이 올바르지 않습니다.',
+      },
+      400,
+    );
+  }
+
   const mimeType =
     typeof body.mimeType === 'string'
       ? body.mimeType.toLowerCase()
@@ -307,17 +325,22 @@ export default async (request: Request) => {
    *
    * 여기서는 public/post를 붙이지 않습니다.
    */
-  const filePath =
+  const storedFileName =
+    uploadType === 'thumbnail'
+      ? `thumbnail.${extension}`
+      : `image-${Date.now()}-${randomBytes(4).toString('hex')}.${extension}`;
+
+  const assetDirectory =
     `${year}/${category}/${month}-${day}/${slug}` +
-    `/assets/images/thumbnail.${extension}`;
+    '/assets/images';
+
+  const filePath = `${assetDirectory}/${storedFileName}`;
 
   /**
    * 실제 Astro/브라우저에서 사용할 경로는
    * public/post 기준이므로 /post/... 형태를 유지합니다.
    */
-  const imagePath =
-    `/post/${year}/${category}/${month}-${day}/${slug}` +
-    `/assets/images/thumbnail.${extension}`;
+  const imagePath = `/post/${filePath}`;
 
   const contentUrl = githubContentUrl(
     owner,
@@ -344,6 +367,16 @@ export default async (request: Request) => {
   );
 
   if (checkResponse.ok) {
+    if (uploadType === 'content') {
+      return jsonResponse(
+        {
+          ok: false,
+          message: '본문 이미지 경로가 충돌했습니다. 다시 시도해 주세요.',
+        },
+        409,
+      );
+    }
+
     return jsonResponse(
       {
         ok: true,
@@ -386,7 +419,10 @@ export default async (request: Request) => {
           'application/json',
       },
       body: JSON.stringify({
-        message: `assets: add thumbnail for ${slug}`,
+        message:
+          uploadType === 'thumbnail'
+            ? `assets: add thumbnail for ${slug}`
+            : `assets: add content image for ${slug}`,
         content: contentBase64,
         branch,
       }),
@@ -412,7 +448,11 @@ export default async (request: Request) => {
   return jsonResponse(
     {
       ok: true,
-      message: '썸네일 업로드 성공',
+      message:
+        uploadType === 'thumbnail'
+          ? '썸네일 업로드 성공'
+          : '본문 이미지 업로드 성공',
+      type: uploadType,
       filePath,
       imagePath,
       commitSha:

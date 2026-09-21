@@ -15,6 +15,12 @@ const markdownSerializer = new MarkdownSerializer(
 		},
 		hardBreak: defaultMarkdownSerializer.nodes.hard_break,
 		heading: defaultMarkdownSerializer.nodes.heading,
+		image(state, node) {
+			const src = JSON.stringify(node.attrs.assetSrc ?? node.attrs.src ?? '');
+			const alt = JSON.stringify(node.attrs.alt ?? '');
+			state.write(`<AssetImage src={${src}} alt={${alt}} />`);
+			state.closeBlock(node);
+		},
 		listItem: defaultMarkdownSerializer.nodes.list_item,
 		orderedList(state, node) {
 			const start = node.attrs.start ?? 1;

@@ -43,6 +43,12 @@
 			>
 			<button type="button" data-editor-action="link" title="링크" aria-label="링크">🔗 링크</button
 			>
+			<button
+				type="button"
+				data-editor-action="image"
+				title="본문 이미지 추가"
+				aria-label="본문 이미지 추가">🖼 이미지</button
+			>
 		</div>
 		<div
 			class="wysiwyg__toolbar-group wysiwyg__toolbar-group--history"
@@ -62,15 +68,38 @@
 			>
 		</div>
 	</div>
+	<input
+		type="file"
+		data-image-input
+		accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+		hidden
+	/>
+	<p class="wysiwyg__status" data-image-status role="status" aria-live="polite" hidden></p>
 	<div class="wysiwyg__content" data-editor-content></div>
 	<input type="hidden" name="content" data-editor-value />
 </div>
 
 <script>
 	import { Editor } from '@tiptap/core';
+	import Image from '@tiptap/extension-image';
 	import Placeholder from '@tiptap/extension-placeholder';
 	import StarterKit from '@tiptap/starter-kit';
+	import { fileToBase64, validateImageFile } from '@/utils/imageUpload';
 	import { serializeTiptapToMarkdown } from '@/utils/tiptapMarkdown.mjs';
+
+	const AssetImage = Image.extend({
+		addAttributes() {
+			return {
+				...this.parent?.(),
+				assetSrc: {
+					default: null,
+					parseHTML: (element) => element.getAttribute('data-asset-src'),
+					renderHTML: (attributes) =>
+						attributes.assetSrc ? { 'data-asset-src': attributes.assetSrc } : {}
+				}
+			};
+		}
+	});
 
 	type EditorAction =
 		| 'bold'
@@ -83,6 +112,7 @@
 		| 'blockquote'
 		| 'codeBlock'
 		| 'link'
+		| 'image'
 		| 'undo'
 		| 'redo';
 
@@ -90,6 +120,11 @@
 		const content = root.querySelector<HTMLElement>('[data-editor-content]');
 		const value = root.querySelector<HTMLInputElement>('[data-editor-value]');
 		const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-editor-action]'));
+		const imageInput = root.querySelector<HTMLInputElement>('[data-image-input]');
+		const imageStatus = root.querySelector<HTMLElement>('[data-image-status]');
+		const form = root.closest<HTMLFormElement>('form');
+		const categoryInput = form?.elements.namedItem('category') as HTMLInputElement | null;
+		const slugInput = form?.elements.namedItem('slug') as HTMLInputElement | null;
 
 		if (!content || !value) return;
 
@@ -111,7 +146,11 @@
 					strike: false,
 					underline: false
 				}),
-				Placeholder.configure({ placeholder: '내용을 입력하세요.' })
+				Placeholder.configure({ placeholder: '내용을 입력하세요.' }),
+				AssetImage.configure({
+					inline: false,
+					allowBase64: false
+				})
 			],
 			content: '<p></p>',
 			editorProps: {
@@ -120,7 +159,7 @@
 					class: 'tiptap-editor',
 					spellcheck: 'true'
 				}
-			},
+			}
 		});
 
 		editor.on('update', ({ editor }) => syncValue(editor));
@@ -169,6 +208,9 @@
 						else editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run();
 						break;
 					}
+					case 'image':
+						openImagePicker();
+						break;
 					case 'undo':
 						editor.chain().focus().undo().run();
 						break;
@@ -179,8 +221,84 @@
 			});
 		});
 
+		imageInput?.addEventListener('change', async () => {
+			const file = imageInput.files?.[0];
+			imageInput.value = '';
+			if (!file) return;
+
+			const validationMessage = validateImageFile(file, '본문 이미지');
+			if (validationMessage) {
+				setImageStatus(validationMessage, 'error');
+				return;
+			}
+
+			const category = categoryInput?.value.trim().normalize('NFC') ?? '';
+			const slug = slugInput?.value.trim().toLowerCase() ?? '';
+			if (!category || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+				setImageStatus('카테고리와 올바른 URL 이름을 먼저 입력해 주세요.', 'error');
+				return;
+			}
+
+			setImageUploading(true);
+			setImageStatus('본문 이미지를 업로드하고 있습니다.', 'loading');
+
+			try {
+				const contentBase64 = await fileToBase64(file);
+				const response = await fetch('/.netlify/functions/image-upload', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						type: 'content',
+						fileName: file.name,
+						mimeType: file.type,
+						contentBase64,
+						category,
+						slug
+					})
+				});
+				const result = await response.json().catch(() => ({}));
+
+				if (!response.ok || !result.ok || !result.imagePath) {
+					throw new Error(result.message || '본문 이미지 업로드 중 오류가 발생했습니다.');
+				}
+
+				const defaultAlt = file.name.replace(/\.[^.]+$/, '');
+				const alt = window.prompt('이미지 대체 텍스트를 입력해 주세요.', defaultAlt);
+				const assetsBaseUrl = import.meta.env.PUBLIC_ASSETS_BASE_URL;
+				const previewSrc = assetsBaseUrl
+					? new URL(
+							result.imagePath.replace(/^\/post\//, ''),
+							`${assetsBaseUrl.replace(/\/+$/, '')}/`
+						).toString()
+					: result.imagePath;
+				editor
+					.chain()
+					.focus()
+					.insertContent({
+						type: 'image',
+						attrs: {
+							src: previewSrc,
+							assetSrc: result.imagePath,
+							alt: alt?.trim() || defaultAlt
+						}
+					})
+					.run();
+				setImageStatus('본문 이미지를 추가했습니다.', 'success');
+			} catch (error) {
+				setImageStatus(
+					error instanceof Error ? error.message : '본문 이미지 업로드 중 오류가 발생했습니다.',
+					'error'
+				);
+			} finally {
+				setImageUploading(false);
+			}
+		});
+
 		root.closest('form')?.addEventListener('reset', () => {
-			window.setTimeout(() => editor.commands.clearContent(), 0);
+			window.setTimeout(() => {
+				editor.commands.clearContent();
+				if (imageStatus) imageStatus.hidden = true;
+			}, 0);
 		});
 
 		function syncValue(currentEditor: Editor) {
@@ -188,6 +306,37 @@
 				? serializeTiptapToMarkdown(currentEditor.state.doc)
 				: '';
 			value.value = markdown;
+		}
+
+		function openImagePicker() {
+			const category = categoryInput?.value.trim() ?? '';
+			const slug = slugInput?.value.trim().toLowerCase() ?? '';
+
+			if (!category) {
+				setImageStatus('본문 이미지를 추가하려면 카테고리를 먼저 입력해 주세요.', 'error');
+				categoryInput?.focus();
+				return;
+			}
+
+			if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+				setImageStatus('본문 이미지를 추가하려면 올바른 URL 이름을 먼저 입력해 주세요.', 'error');
+				slugInput?.focus();
+				return;
+			}
+
+			imageInput?.click();
+		}
+
+		function setImageUploading(isUploading: boolean) {
+			const imageButton = buttons.find((button) => button.dataset.editorAction === 'image');
+			if (imageButton) imageButton.disabled = isUploading;
+		}
+
+		function setImageStatus(message: string, type: 'loading' | 'success' | 'error') {
+			if (!imageStatus) return;
+			imageStatus.textContent = message;
+			imageStatus.dataset.status = type;
+			imageStatus.hidden = false;
 		}
 
 		function updateToolbar(currentEditor: Editor) {
@@ -367,6 +516,37 @@
 		color: var(--primary1);
 		text-decoration: underline;
 		text-underline-offset: 2px;
+	}
+
+	.wysiwyg__content :global(.tiptap img) {
+		display: block;
+		max-width: 100%;
+		height: auto;
+		margin: 1.25rem auto;
+		border-radius: 8px;
+	}
+
+	.wysiwyg__content :global(.tiptap img.ProseMirror-selectednode) {
+		outline: 3px solid rgba(229, 45, 66, 0.3);
+	}
+
+	.wysiwyg__status {
+		padding: 9px 14px;
+		border-bottom: 1px solid #e7e7e7;
+		background: #f7f8f9;
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		color: #4b5057;
+	}
+
+	.wysiwyg__status[data-status='error'] {
+		background: #fff5f6;
+		color: #a51c2c;
+	}
+
+	.wysiwyg__status[data-status='success'] {
+		background: #f0faf3;
+		color: #176534;
 	}
 
 	.wysiwyg__content :global(.tiptap p.is-editor-empty:first-child::before) {

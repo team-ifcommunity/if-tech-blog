@@ -16,6 +16,7 @@
     "@astrojs/sitemap": "^3.4.1",
     "@tailwindcss/vite": "^4.1.10",
     "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-image": "^3.31.3",
     "@tiptap/extension-placeholder": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "astro": "^5.10.0",

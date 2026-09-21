@@ -262,8 +262,8 @@
 					throw new Error(result.message || '본문 이미지 업로드 중 오류가 발생했습니다.');
 				}
 
-				const defaultAlt = file.name.replace(/\.[^.]+$/, '');
-				const alt = window.prompt('이미지 대체 텍스트를 입력해 주세요.', defaultAlt);
+				const fileNameWithoutExtension = file.name.replace(/\.[^.]+$/, '').trim();
+				const alt = `${fileNameWithoutExtension} 이미지`;
 				const assetsBaseUrl = import.meta.env.PUBLIC_ASSETS_BASE_URL;
 				const previewSrc = assetsBaseUrl
 					? new URL(
@@ -279,7 +279,7 @@
 						attrs: {
 							src: previewSrc,
 							assetSrc: result.imagePath,
-							alt: alt?.trim() || defaultAlt
+							alt
 						}
 					})
 					.run();

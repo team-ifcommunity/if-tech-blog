@@ -141,6 +141,7 @@
 		const form = root.closest<HTMLFormElement>('form');
 		const categoryInput = form?.elements.namedItem('category') as HTMLInputElement | null;
 		const slugInput = form?.elements.namedItem('slug') as HTMLInputElement | null;
+		const pubDateInput = form?.elements.namedItem('pubDate') as HTMLInputElement | null;
 
 		if (!content || !value) return;
 
@@ -276,7 +277,8 @@
 						mimeType: file.type,
 						contentBase64,
 						category,
-						slug
+						slug,
+						pubDate: pubDateInput?.value
 					})
 				});
 				const result = await response.json().catch(() => ({}));
@@ -288,12 +290,13 @@
 				const fileNameWithoutExtension = file.name.replace(/\.[^.]+$/, '').trim();
 				const alt = `${fileNameWithoutExtension} 이미지`;
 				const assetsBaseUrl = import.meta.env.PUBLIC_ASSETS_BASE_URL;
-				const previewSrc = assetsBaseUrl
-					? new URL(
-							result.imagePath.replace(/^\/post\//, ''),
-							`${assetsBaseUrl.replace(/\/+$/, '')}/`
-						).toString()
-					: result.imagePath;
+				const previewSrc =
+					result.target !== 'local' && assetsBaseUrl
+						? new URL(
+								result.imagePath.replace(/^\/post\//, ''),
+								`${assetsBaseUrl.replace(/\/+$/, '')}/`
+							).toString()
+						: result.imagePath;
 				editor
 					.chain()
 					.focus()
@@ -338,7 +341,7 @@
 		}) {
 			if (node.type === 'image' && typeof node.attrs?.assetSrc === 'string') {
 				const base = import.meta.env.PUBLIC_ASSETS_BASE_URL;
-				if (base)
+				if (base && document.documentElement.dataset.cmsStorageMode !== 'local')
 					node.attrs.src = new URL(
 						node.attrs.assetSrc
 							.replace(/^\/+/, '')

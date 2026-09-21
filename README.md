@@ -5,7 +5,7 @@
 - [❓ 이프커뮤니티 기술 블로그가 무엇인가요?](#이프커뮤니티-기술-블로그가-무엇인가요)
 - [🗂️ 폴더 구조](#폴더-구조)
 - [🛠️ 이프커뮤니티 기술 블로그 사용법](#이프커뮤니티-기술-블로그-사용법)
-  - [✏️ 아티클 작성하기 (개발자)](#아티클-작성하기-(개발자))
+  - [✏️ 아티클 작성하기 (개발자)](<#아티클-작성하기-(개발자)>)
   - [✏️ 아티클 작성하기 (개발자가 아닌경우)](#아티클-작성하기-개발자가-아닌경우)
   - [🌟 Netlify 배포 트리거가 필요한 경우](#Netlify-배포-트리거가-필요한-경우)
 - [🗃️ if-tech-blog / if-tech-blog-assets 저장소 관계](#if-tech-blog-/-if-tech-blog-assets-저장소-관계)
@@ -169,3 +169,33 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 ---
 
 <a href="#목차">⬆️ 목차로 올라가기</a>
+
+# CMS 로컬 저장과 수동 게시
+
+로컬에서 CMS를 테스트할 때는 `.env.example`을 참고해 `.env`에 다음 값을 설정합니다.
+
+```env
+CMS_STORAGE_MODE=local
+```
+
+그 다음 의존성을 설치하고 Netlify Functions와 Astro를 함께 실행합니다.
+
+```bash
+npm install
+npx netlify dev
+```
+
+`/admin/write`와 `/admin/edit`에는 로컬 모드에서 두 가지 저장 동작이 표시됩니다.
+
+- **로컬 저장**: `src/content/blog/*.mdx`와 `public/post/{year}/{category}/{MM-DD}/{slug}/assets/images/`만 변경합니다. GitHub API와 Netlify 배포는 호출하지 않습니다. Astro가 파일 변경을 감지하므로 localhost에서 바로 확인할 수 있습니다.
+- **GitHub에 게시/반영**: 현재 글이 참조하는 로컬 이미지를 `team-ifcommunity/if-tech-blog-assets`에 올리고, MDX를 `team-ifcommunity/if-tech-blog`에 반영합니다. 이때만 GitHub 커밋과 Netlify 배포가 시작됩니다.
+
+로컬 파일 접근은 `CMS_STORAGE_MODE=local`이면서 Netlify CLI가 설정하는 `NETLIFY_DEV=true`인 경우에만 허용됩니다. 따라서 `astro dev`가 아니라 `netlify dev`를 사용해야 합니다.
+
+Netlify 운영 환경에는 다음 값을 설정합니다.
+
+```env
+CMS_STORAGE_MODE=github
+```
+
+운영 모드에서는 GitHub 게시/반영 버튼만 표시되고 기존 GitHub 저장 흐름을 사용합니다. 테스트 순서는 새 글 또는 기존 글을 열어 **로컬 저장** → localhost 확인 → **GitHub에 게시/반영** → 두 저장소의 커밋과 Netlify 배포 확인입니다.

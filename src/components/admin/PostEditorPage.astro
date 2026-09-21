@@ -26,6 +26,7 @@ const isEdit = mode === 'edit';
 					}
 				</p>
 			</header>
+			<div class="storage-notice" id="storage-notice" role="status" hidden></div>
 
 			<form class="write-form" id="write-form" data-mode={mode}>
 				<div class="form-message" id="loading-message" role="status" hidden={!isEdit}>
@@ -191,9 +192,18 @@ const isEdit = mode === 'edit';
 
 				<div class="write-form__actions">
 					<a href={isEdit ? '/admin/posts' : '/'} class="button button--secondary">취소</a>
-					<button type="submit" class="button button--primary" id="submit-button">
-						<span class="button__label">{isEdit ? '변경 사항 저장' : '글 게시하기'}</span>
-						<span class="button__loading" hidden>{isEdit ? '저장 중…' : '게시 중…'}</span>
+					<button type="submit" class="button button--secondary" data-storage-target="local" hidden>
+						<span class="button__label">로컬 저장</span>
+						<span class="button__loading" hidden>저장 중…</span>
+					</button>
+					<button
+						type="submit"
+						class="button button--primary"
+						id="submit-button"
+						data-storage-target="github"
+					>
+						<span class="button__label">{isEdit ? 'GitHub에 반영' : 'GitHub에 게시'}</span>
+						<span class="button__loading" hidden>게시 중…</span>
 					</button>
 				</div>
 			</form>
@@ -207,6 +217,13 @@ const isEdit = mode === 'edit';
 	const form = document.querySelector<HTMLFormElement>('#write-form');
 	const mode = form?.dataset.mode === 'edit' ? 'edit' : 'create';
 	const submitButton = document.querySelector<HTMLButtonElement>('#submit-button');
+	const submitButtons = Array.from(
+		document.querySelectorAll<HTMLButtonElement>('[data-storage-target]')
+	);
+	const localSaveButton = document.querySelector<HTMLButtonElement>(
+		'[data-storage-target="local"]'
+	);
+	const storageNotice = document.querySelector<HTMLDivElement>('#storage-notice');
 	const formMessage = document.querySelector<HTMLDivElement>('#form-message');
 	const loadingMessage = document.querySelector<HTMLDivElement>('#loading-message');
 	const titleInput = form?.elements.namedItem('title') as HTMLInputElement | null;
@@ -225,8 +242,27 @@ const isEdit = mode === 'edit';
 	let currentSha = '';
 	let currentHeroImage = '';
 
-	if (mode === 'edit') void loadPost();
-	else setDefaultPubDate();
+	void initialize();
+
+	async function initialize() {
+		try {
+			const response = await fetch('/.netlify/functions/storage-mode');
+			const result = await response.json();
+			const isLocal = result.mode === 'local' && result.localStorageAvailable;
+			document.documentElement.dataset.cmsStorageMode = isLocal ? 'local' : 'github';
+			if (localSaveButton) localSaveButton.hidden = !isLocal;
+			if (storageNotice) {
+				storageNotice.textContent = isLocal
+					? '로컬 모드: 로컬 저장은 프로젝트 파일만 변경하며 배포하지 않습니다. GitHub 버튼을 눌러야 배포가 시작됩니다.'
+					: '운영 모드: 저장하면 GitHub 반영과 Netlify 배포가 시작됩니다.';
+				storageNotice.hidden = false;
+			}
+		} catch {
+			document.documentElement.dataset.cmsStorageMode = 'github';
+		}
+		if (mode === 'edit') await loadPost();
+		else setDefaultPubDate();
+	}
 
 	function setDefaultPubDate() {
 		const pubDateInput = form?.elements.namedItem('pubDate') as HTMLInputElement | null;
@@ -284,12 +320,14 @@ const isEdit = mode === 'edit';
 
 	form?.addEventListener('submit', async (event) => {
 		event.preventDefault();
+		const clickedButton = (event as SubmitEvent).submitter as HTMLButtonElement | null;
+		const target = clickedButton?.dataset.storageTarget === 'local' ? 'local' : 'github';
 
-		if (!form.reportValidity() || !submitButton || !formMessage) return;
+		if (!form.reportValidity() || !formMessage) return;
 
 		const data = new FormData(form);
 		const thumbnail = thumbnailInput?.files?.[0];
-		if (!thumbnail && mode === 'create') {
+		if (!thumbnail && mode === 'create' && !currentHeroImage) {
 			showThumbnailError('썸네일 이미지를 선택해 주세요.');
 			showMessage('썸네일 이미지를 선택해 주세요.', 'error');
 			return;
@@ -336,7 +374,7 @@ const isEdit = mode === 'edit';
 			return;
 		}
 
-		setSubmitting(true);
+		setSubmitting(true, clickedButton);
 		formMessage.hidden = true;
 
 		try {
@@ -348,13 +386,15 @@ const isEdit = mode === 'edit';
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
+						target,
 						type: 'thumbnail',
 						fileName: thumbnail.name,
 						mimeType: thumbnail.type,
 						contentBase64,
 						category: payload.category,
 						slug: payload.slug,
-						overwrite: mode === 'edit'
+						pubDate: payload.pubDate,
+						overwrite: mode === 'edit' || Boolean(currentHeroImage)
 					})
 				});
 				const uploadResult = await uploadResponse.json().catch(() => ({}));
@@ -370,7 +410,13 @@ const isEdit = mode === 'edit';
 				{
 					method: mode === 'edit' ? 'PUT' : 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ ...payload, heroImage, file: currentFile, sha: currentSha })
+					body: JSON.stringify({
+						...payload,
+						target,
+						heroImage,
+						file: currentFile,
+						sha: currentSha
+					})
 				}
 			);
 			const postResult = await postResponse.json().catch(() => ({}));
@@ -385,18 +431,19 @@ const isEdit = mode === 'edit';
 			}
 
 			showMessage(
-				mode === 'edit'
-					? `변경 사항을 저장했습니다. ${postResult.deploymentTriggered ? '새 배포를 시작했으며' : 'Netlify 배포가 완료되면'} 메인에 반영됩니다.`
-					: `게시글을 저장했습니다. ${postResult.deploymentTriggered ? '새 배포를 시작했습니다.' : 'Netlify 배포가 완료되면 블로그에 표시됩니다.'}`,
+				target === 'local'
+					? '프로젝트 파일에 저장했습니다. localhost에서 확인할 수 있으며 GitHub와 Netlify에는 반영되지 않았습니다.'
+					: `${mode === 'edit' ? 'GitHub에 변경 사항을 반영했습니다.' : 'GitHub에 게시했습니다.'} ${postResult.deploymentTriggered ? '새 배포를 시작했습니다.' : 'Netlify의 저장소 연동 배포를 기다려 주세요.'}`,
 				'success'
 			);
-			if (mode === 'edit') {
-				currentSha = postResult.sha ?? currentSha;
-				currentHeroImage = heroImage;
+			currentFile = postResult.file ?? currentFile;
+			currentSha = postResult.sha ?? currentSha;
+			currentHeroImage = heroImage;
+			if (mode === 'edit' || target === 'local') {
 				if (thumbnailInput) thumbnailInput.value = '';
 				if (thumbnailName) thumbnailName.textContent = '기존 썸네일 유지';
 				clearPreview();
-				showRemoteThumbnail(currentHeroImage);
+				showThumbnail(currentHeroImage, target);
 			} else {
 				form.reset();
 				setDefaultPubDate();
@@ -409,7 +456,7 @@ const isEdit = mode === 'edit';
 			const message = error instanceof Error ? error.message : '게시 중 오류가 발생했습니다.';
 			showMessage(message, 'error');
 		} finally {
-			setSubmitting(false);
+			setSubmitting(false, clickedButton);
 		}
 	});
 
@@ -442,7 +489,7 @@ const isEdit = mode === 'edit';
 			if (warning) warning.checked = Boolean(result.post.isWarning);
 			if (descriptionCount) descriptionCount.textContent = String(description?.value.length ?? 0);
 			if (thumbnailName) thumbnailName.textContent = '기존 썸네일 유지';
-			showRemoteThumbnail(currentHeroImage);
+			showThumbnail(currentHeroImage, result.storageMode === 'local' ? 'local' : 'github');
 			document
 				.querySelector<HTMLElement>('[data-wysiwyg]')
 				?.dispatchEvent(
@@ -456,11 +503,11 @@ const isEdit = mode === 'edit';
 		}
 	}
 
-	function showRemoteThumbnail(path: string) {
+	function showThumbnail(path: string, target: 'local' | 'github' = 'github') {
 		if (!path || !thumbnailPreviewImage || !thumbnailPreview) return;
 		const base = import.meta.env.PUBLIC_ASSETS_BASE_URL;
 		thumbnailPreviewImage.src =
-			base && !/^(?:[a-z]+:|\/\/|#)/i.test(path)
+			target !== 'local' && base && !/^(?:[a-z]+:|\/\/|#)/i.test(path)
 				? new URL(
 						path.replace(/^\/+/, '').replace(/^post\//, ''),
 						`${base.replace(/\/+$/, '')}/`
@@ -469,11 +516,15 @@ const isEdit = mode === 'edit';
 		thumbnailPreview.hidden = false;
 	}
 
-	function setSubmitting(isSubmitting: boolean) {
-		if (!submitButton) return;
-		submitButton.disabled = isSubmitting;
-		submitButton.querySelector<HTMLElement>('.button__label')!.hidden = isSubmitting;
-		submitButton.querySelector<HTMLElement>('.button__loading')!.hidden = !isSubmitting;
+	function setSubmitting(isSubmitting: boolean, activeButton: HTMLButtonElement | null) {
+		submitButtons.forEach((button) => {
+			button.disabled = isSubmitting;
+			button.querySelector<HTMLElement>('.button__label')!.hidden =
+				isSubmitting && button === activeButton;
+			button.querySelector<HTMLElement>('.button__loading')!.hidden = !(
+				isSubmitting && button === activeButton
+			);
+		});
 	}
 
 	function setLoadingMessage(message: string) {
@@ -558,6 +609,17 @@ const isEdit = mode === 'edit';
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
+	}
+
+	.storage-notice {
+		margin-bottom: 20px;
+		padding: 14px 16px;
+		border: 1px solid #c9d8ef;
+		border-radius: 10px;
+		background: #f3f7fd;
+		font-size: 0.9rem;
+		line-height: 1.6;
+		color: #284c7a;
 	}
 
 	.write-form__section {

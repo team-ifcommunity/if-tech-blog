@@ -1,17 +1,25 @@
 import {
-	contentsUrl,
 	decodeGithubContent,
 	getGithubConfig,
 	githubHeaders,
 	isValidPostFile,
 	json,
 	parseMdx,
-	postPath,
 	triggerNetlifyBuild,
 	updateFrontmatter
 } from './_posts';
+import {
+	githubPostUrl,
+	publishReferencedLocalAssets,
+	putGithubFile,
+	readLocalPost,
+	resolveStorageTarget,
+	StorageError,
+	writeLocalPost
+} from './_storage';
 
 type UpdateBody = {
+	target?: 'local' | 'github';
 	file?: string;
 	sha?: string;
 	title?: string;
@@ -27,15 +35,18 @@ type UpdateBody = {
 
 export default async (request: Request) => {
 	if (request.method !== 'PUT') return json({ ok: false, message: 'PUT 요청만 허용됩니다.' }, 405);
-	const config = getGithubConfig();
-	if (!config) return json({ ok: false, message: 'GitHub 환경변수가 설정되지 않았습니다.' }, 500);
 	let body: UpdateBody;
 	try {
 		body = await request.json();
 	} catch {
 		return json({ ok: false, message: 'JSON 형식이 올바르지 않습니다.' }, 400);
 	}
-
+	let target;
+	try {
+		target = resolveStorageTarget(body.target);
+	} catch (error) {
+		return storageError(error);
+	}
 	const file = typeof body.file === 'string' ? body.file.normalize('NFC') : '';
 	if (!isValidPostFile(file))
 		return json({ ok: false, message: '게시글 파일 경로가 올바르지 않습니다.' }, 400);
@@ -57,70 +68,78 @@ export default async (request: Request) => {
 	)
 		return json({ ok: false, message: '게시일 또는 URL 이름 형식이 올바르지 않습니다.' }, 400);
 
-	const path = postPath(file);
-	const url = contentsUrl(config.owner, config.repo, path);
-	const headers = githubHeaders(config.token);
-	const currentResponse = await fetch(`${url}?ref=${encodeURIComponent(config.branch)}`, {
-		headers
-	});
-	const current = await currentResponse.json().catch(() => null);
-	if (!currentResponse.ok || !current?.content || !current?.sha)
-		return json(
-			{ ok: false, message: '수정할 게시글을 불러오지 못했습니다.' },
-			currentResponse.status
-		);
-	if (!body.sha || body.sha !== current.sha)
-		return json(
-			{
-				ok: false,
-				message: '다른 변경 사항이 먼저 저장되었습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.'
-			},
-			409
-		);
-
-	let parsed;
 	try {
-		parsed = parseMdx(decodeGithubContent(current.content));
-	} catch {
-		return json({ ok: false, message: '기존 MDX를 해석하지 못했습니다.' }, 422);
-	}
-	const frontmatter = updateFrontmatter(parsed.frontmatterRaw, {
-		title: body.title!.trim(),
-		description: body.description!.trim(),
-		isWarning: Boolean(body.isWarning),
-		pubDate: body.pubDate!,
-		heroImage: body.heroImage!.trim(),
-		category: body.category!.trim(),
-		author: body.author!.trim(),
-		slug: body.slug!.trim().normalize('NFC').toLowerCase()
-	});
-	const imports = parsed.imports.length
-		? parsed.imports
-		: ["import AssetImage from '@/components/AssetImage.astro';"];
-	const source = `---\n${frontmatter}\n---\n\n${imports.join('\n')}\n\n${body.content!.trim()}\n`;
-	const updateResponse = await fetch(url, {
-		method: 'PUT',
-		headers: { ...headers, 'Content-Type': 'application/json' },
-		body: JSON.stringify({
+		let existingSource: string;
+		if (target === 'local') existingSource = (await readLocalPost(file)).source;
+		else {
+			const config = getGithubConfig();
+			if (!config)
+				return json({ ok: false, message: 'GitHub 환경변수가 설정되지 않았습니다.' }, 500);
+			const response = await fetch(
+				`${githubPostUrl(config.owner, config.repo, file)}?ref=${encodeURIComponent(config.branch)}`,
+				{ headers: githubHeaders(config.token) }
+			);
+			const current = await response.json().catch(() => null);
+			if (!response.ok || !current?.content)
+				return json(
+					{ ok: false, message: '수정할 게시글을 GitHub에서 불러오지 못했습니다.' },
+					response.status
+				);
+			existingSource = decodeGithubContent(current.content);
+		}
+		const parsed = parseMdx(existingSource);
+		const frontmatter = updateFrontmatter(parsed.frontmatterRaw, {
+			title: body.title!.trim(),
+			description: body.description!.trim(),
+			isWarning: Boolean(body.isWarning),
+			pubDate: body.pubDate!,
+			heroImage: body.heroImage!.trim(),
+			category: body.category!.trim(),
+			author: body.author!.trim(),
+			slug: body.slug!.trim().normalize('NFC').toLowerCase()
+		});
+		const imports = parsed.imports.length
+			? parsed.imports
+			: ["import AssetImage from '@/components/AssetImage.astro';"];
+		const source = `---\n${frontmatter}\n---\n\n${imports.join('\n')}\n\n${body.content!.trim()}\n`;
+		if (target === 'local') {
+			const sha = await writeLocalPost(file, source, body.sha);
+			return json({ ok: true, target, message: '로컬 게시글 수정 성공', file, sha });
+		}
+		const config = getGithubConfig()!;
+		await publishReferencedLocalAssets({
+			token: config.token,
+			owner: process.env.GITHUB_ASSETS_OWNER || 'team-ifcommunity',
+			repo: process.env.GITHUB_ASSETS_REPO || 'if-tech-blog-assets',
+			branch: process.env.GITHUB_ASSETS_BRANCH || 'main',
+			source
+		});
+		const result = await putGithubFile({
+			...config,
+			filePath: `src/content/blog/${file}`,
+			bytes: Buffer.from(source, 'utf8'),
 			message: `docs: ${body.title!.trim()} 수정`,
-			content: Buffer.from(source, 'utf8').toString('base64'),
-			sha: current.sha,
-			branch: config.branch
-		})
-	});
-	const result = await updateResponse.json().catch(() => null);
-	if (!updateResponse.ok)
-		return json(
-			{ ok: false, message: 'GitHub에 변경 사항을 저장하지 못했습니다.', github: result },
-			updateResponse.status
-		);
-	const deploymentTriggered = await triggerNetlifyBuild();
-	return json({
-		ok: true,
-		message: '게시글 수정 성공',
-		file,
-		sha: result?.content?.sha,
-		commitSha: result?.commit?.sha,
-		deploymentTriggered
-	});
+			overwrite: true
+		});
+		const deploymentTriggered = await triggerNetlifyBuild();
+		return json({
+			ok: true,
+			target,
+			message: '게시글 수정 성공',
+			file,
+			sha: result.sha,
+			commitSha: result.commitSha,
+			deploymentTriggered
+		});
+	} catch (error) {
+		return storageError(error);
+	}
 };
+
+function storageError(error: unknown) {
+	if (error instanceof StorageError)
+		return json({ ok: false, message: error.message }, error.status);
+	if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+		return json({ ok: false, message: '수정할 게시글을 찾을 수 없습니다.' }, 404);
+	return json({ ok: false, message: '게시글을 저장하지 못했습니다.' }, 500);
+}

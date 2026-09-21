@@ -101,3 +101,15 @@ export function updateFrontmatter(raw: string, values: Record<string, string | b
 export function decodeGithubContent(content: string) {
 	return Buffer.from(content.replace(/\n/g, ''), 'base64').toString('utf8');
 }
+
+export async function triggerNetlifyBuild() {
+	const buildHook = process.env.NETLIFY_BUILD_HOOK_URL;
+	if (!buildHook) return false;
+
+	try {
+		const response = await fetch(buildHook, { method: 'POST' });
+		return response.ok;
+	} catch {
+		return false;
+	}
+}

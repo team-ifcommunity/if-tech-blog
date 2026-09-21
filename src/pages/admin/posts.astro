@@ -8,7 +8,8 @@ import Template from '@/layouts/Template.astro';
 			<header class="posts-page__header">
 				<div>
 					<p>IF TECH BLOG</p><h1>게시글 관리</h1><span
-						>GitHub main 브랜치의 게시글을 불러옵니다.</span>
+						>GitHub main 브랜치의 게시글을 불러옵니다.</span
+					>
 				</div>
 				<a href="/admin/write" class="new-post">새 글 작성</a>
 			</header>
@@ -83,7 +84,7 @@ import Template from '@/layouts/Template.astro';
 	}
 </script>
 
-<style>
+<style is:global>
 	.posts-page {
 		min-height: calc(100vh - 145px);
 		padding: 120px 20px 96px;
@@ -118,15 +119,15 @@ import Template from '@/layouts/Template.astro';
 		margin-top: 10px;
 		color: var(--c666);
 	}
-	.new-post,
-	tbody a {
+	.posts-page .new-post,
+	.posts-page tbody a {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		border-radius: 9px;
 		font-weight: 650;
 	}
-	.new-post {
+	.posts-page .new-post {
 		min-width: 120px;
 		height: 48px;
 		padding: 0 20px;
@@ -152,41 +153,66 @@ import Template from '@/layouts/Template.astro';
 		border-radius: 14px;
 		background: white;
 	}
-	table {
+	.posts-table table {
 		width: 100%;
+		min-width: 760px;
+		table-layout: fixed;
 		border-collapse: collapse;
 	}
-	th,
-	td {
+	.posts-table th,
+	.posts-table td {
 		padding: 17px 18px;
 		border-bottom: 1px solid #ededed;
 		text-align: left;
 		vertical-align: middle;
 	}
-	th {
+	.posts-table th {
 		background: #f7f8f9;
 		color: #626871;
 		font-size: 0.8125rem;
 		white-space: nowrap;
 	}
-	tbody tr:last-child td {
+	.posts-table th:first-child {
+		width: 52%;
+	}
+	.posts-table th:nth-child(2) {
+		width: 13%;
+	}
+	.posts-table th:nth-child(3) {
+		width: 13%;
+	}
+	.posts-table th:nth-child(4) {
+		width: 14%;
+	}
+	.posts-table th:last-child {
+		width: 80px;
+	}
+	.posts-table tbody tr {
+		transition: background-color 0.18s ease;
+	}
+	.posts-table tbody tr:hover {
+		background: #fafbfc;
+	}
+	.posts-table tbody tr:last-child td {
 		border-bottom: 0;
 	}
-	td {
+	.posts-table td {
 		color: var(--c555);
 		font-size: 0.9375rem;
 	}
-	td:first-child {
+	.posts-table td:first-child {
 		min-width: 300px;
 	}
-	td strong,
-	td small {
+	.posts-table td strong,
+	.posts-table td small {
 		display: block;
 	}
-	td strong {
+	.posts-table td strong {
 		color: var(--c333);
+		font-size: 1rem;
+		line-height: 1.45;
 	}
-	td small {
+	.posts-table td small {
 		max-width: 520px;
 		margin-top: 5px;
 		overflow: hidden;
@@ -194,14 +220,22 @@ import Template from '@/layouts/Template.astro';
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	tbody a {
+	.posts-page tbody a {
 		min-width: 64px;
 		height: 36px;
 		border: 1px solid #d9dce1;
+		background: white;
 		color: var(--c333);
+		font-size: 0.875rem;
+		transition:
+			border-color 0.18s ease,
+			background-color 0.18s ease,
+			color 0.18s ease;
 	}
-	tbody a:hover {
-		background: #f1f2f4;
+	.posts-page tbody a:hover {
+		border-color: var(--primary1);
+		background: #fff5f6;
+		color: var(--primary1);
 	}
 	.sr-only {
 		position: absolute;

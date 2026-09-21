@@ -256,8 +256,8 @@
 			}
 
 			const category = categoryInput?.value.trim().normalize('NFC') ?? '';
-			const slug = slugInput?.value.trim().toLowerCase() ?? '';
-			if (!category || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+			const slug = slugInput?.value.trim().normalize('NFC').toLowerCase() ?? '';
+			if (!category || !/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug)) {
 				setImageStatus('카테고리와 올바른 URL 이름을 먼저 입력해 주세요.', 'error');
 				return;
 			}
@@ -352,7 +352,7 @@
 
 		function openImagePicker() {
 			const category = categoryInput?.value.trim() ?? '';
-			const slug = slugInput?.value.trim().toLowerCase() ?? '';
+			const slug = slugInput?.value.trim().normalize('NFC').toLowerCase() ?? '';
 
 			if (!category) {
 				setImageStatus('본문 이미지를 추가하려면 카테고리를 먼저 입력해 주세요.', 'error');
@@ -360,7 +360,7 @@
 				return;
 			}
 
-			if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+			if (!/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug)) {
 				setImageStatus('본문 이미지를 추가하려면 올바른 URL 이름을 먼저 입력해 주세요.', 'error');
 				slugInput?.focus();
 				return;

@@ -21,9 +21,11 @@ img {
 	object-fit: cover;
 }
 
-button:not(.defaultButtons button):not(.articleContainer dialog button):not(.btnTop):not(
-		[class*='btn-']
-	) {
+:where(
+	button:not(.defaultButtons button):not(.articleContainer dialog button):not(.btnTop):not(
+			[class*='btn-']
+		)
+) {
 	border: 0;
 	background-color: transparent;
 	cursor: pointer;

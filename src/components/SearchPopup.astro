@@ -35,18 +35,18 @@ const posts = (await getCollection('blog'))
 
 		return {
 			title: post.data.title,
-			slug: post.slug,
+			slug: post.data.slug?.trim() || post.slug,
 			description: post.data.description,
 			category: post.data.category ?? '',
 			heroImage: hasHeroImage
 				? toCdnAssetUrl(
-					resolvePostFilePath({
-					src: post.data.heroImage,
-					pubDate: post.data.pubDate,
-					category: post.data.category,
-					type: 'assets'
-					})
-				)
+						resolvePostFilePath({
+							src: post.data.heroImage,
+							pubDate: post.data.pubDate,
+							category: post.data.category,
+							type: 'assets'
+						})
+					)
 				: null
 		};
 	});

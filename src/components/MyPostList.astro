@@ -35,7 +35,7 @@ function getPostHref(post) {
 		return '#';
 	}
 
-	return `${linkPrefix}/${post.slug}/`;
+	return `${linkPrefix}/${post.data.slug?.trim() || post.slug}/`;
 }
 
 function getPostPubDate(post) {
@@ -51,7 +51,6 @@ function getPostPubDate(post) {
 
 	return pubDate;
 }
-
 ---
 
 <ul class="myPostList" data-post-list={withBehavior ? '' : undefined}>

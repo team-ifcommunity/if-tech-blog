@@ -49,11 +49,11 @@ function getSeoulDateParts() {
 }
 
 function normalizeSlug(value: string) {
-  return value.trim().toLowerCase();
+  return value.trim().normalize('NFC').toLowerCase();
 }
 
 function isValidSlug(value: string) {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+  return /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(value);
 }
 
 function normalizeCategory(value: string) {
@@ -258,7 +258,7 @@ export default async (request: Request) => {
       {
         ok: false,
         message:
-          'URL 이름은 영문 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다.',
+          'URL 이름에는 문자, 숫자, 하이픈(-)만 사용할 수 있습니다.',
       },
       400,
     );

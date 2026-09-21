@@ -7,6 +7,7 @@ import {
 	json,
 	parseMdx,
 	postPath,
+	triggerNetlifyBuild,
 	updateFrontmatter
 } from './_posts';
 
@@ -50,7 +51,10 @@ export default async (request: Request) => {
 	] as const;
 	if (required.some((key) => typeof body[key] !== 'string' || !body[key]?.trim()))
 		return json({ ok: false, message: '필수 항목을 모두 입력해 주세요.' }, 400);
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(body.pubDate!) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.slug!))
+	if (
+		!/^\d{4}-\d{2}-\d{2}$/.test(body.pubDate!) ||
+		!/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(body.slug!)
+	)
 		return json({ ok: false, message: '게시일 또는 URL 이름 형식이 올바르지 않습니다.' }, 400);
 
 	const path = postPath(file);
@@ -88,7 +92,7 @@ export default async (request: Request) => {
 		heroImage: body.heroImage!.trim(),
 		category: body.category!.trim(),
 		author: body.author!.trim(),
-		slug: body.slug!.trim().toLowerCase()
+		slug: body.slug!.trim().normalize('NFC').toLowerCase()
 	});
 	const imports = parsed.imports.length
 		? parsed.imports
@@ -110,11 +114,13 @@ export default async (request: Request) => {
 			{ ok: false, message: 'GitHub에 변경 사항을 저장하지 못했습니다.', github: result },
 			updateResponse.status
 		);
+	const deploymentTriggered = await triggerNetlifyBuild();
 	return json({
 		ok: true,
 		message: '게시글 수정 성공',
 		file,
 		sha: result?.content?.sha,
-		commitSha: result?.commit?.sha
+		commitSha: result?.commit?.sha,
+		deploymentTriggered
 	});
 };

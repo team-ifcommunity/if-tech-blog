@@ -10,11 +10,11 @@ export async function GET(context) {
 		site: context.site,
 		items: posts.map((post) => ({
 			...post.data,
-			link: `/${post.slug}/`,
+			link: `/posts/${post.data.slug?.trim() || post.slug}/`,
 			updatedDate: post.data.updatedDate,
 			pubDate: post.data.pubDate,
 			heroImage: post.data.heroImage,
 			category: post.data.category
-		})),
+		}))
 	});
 }

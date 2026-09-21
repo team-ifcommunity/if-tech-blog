@@ -1,3 +1,5 @@
+import { triggerNetlifyBuild } from './_posts';
+
 type CreatePostBody = {
     title: string;
     description: string;
@@ -116,8 +118,9 @@ type CreatePostBody = {
   
     const safeSlug = slug
       .trim()
+      .normalize('NFC')
       .toLowerCase()
-      .replace(/[^a-z0-9-_]/g, '-')
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
   
@@ -262,6 +265,8 @@ type CreatePostBody = {
       );
     }
   
+    const deploymentTriggered = await triggerNetlifyBuild();
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -269,6 +274,7 @@ type CreatePostBody = {
         filePath,
         commitSha: result.commit?.sha,
         fileUrl: result.content?.html_url,
+        deploymentTriggered,
       }),
       {
         status: 201,

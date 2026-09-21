@@ -5,8 +5,8 @@ import ArticleTemplate from '../../layouts/ArticleTemplate.astro';
 export async function getStaticPaths() {
 	const posts = await getCollection('blog');
 	return posts.map((post) => ({
-		params: { slug: post.slug },
-		props: post,
+		params: { slug: post.data.slug?.trim() || post.slug },
+		props: post
 	}));
 }
 

@@ -116,11 +116,14 @@
 이때는 아래 방법 중 하나로 **Netlify 배포를 수동 트리거**합니다.
 
 - Netlify UI에서 **Deploy site** 실행
+- Netlify Build Hook을 만든 뒤 사이트 환경변수 `NETLIFY_BUILD_HOOK_URL`에 등록
 - 또는 `if-tech-blog` 저장소에 배포 트리거용 빈 커밋 생성
   ```bash
   git commit --allow-empty -m "chore: trigger netlify deploy"
   git push
   ```
+
+`NETLIFY_BUILD_HOOK_URL`이 설정되어 있으면 관리자 글 작성·수정 완료 직후 새 배포를 자동으로 요청합니다.
 
 ---
 

@@ -1,5 +1,6 @@
 ---
 import FormattedDate from './FormattedDate.astro';
+import { postExcerpt } from '../utils/postExcerpt.js';
 import Image from './Image.astro';
 import { hasPostAssetFile, resolvePostFilePath } from '../utils/postAssetPath.js';
 import '../styles/myPostList.css';
@@ -92,7 +93,7 @@ function getPostPubDate(post) {
 
 								<div class="flex flex-col gap-y-2.5">
 									<h4 class="myPostTitle">{post.data.title}</h4>
-									<p class="myPostDescription">{post.data.description}</p>
+									<p class="myPostDescription">{postExcerpt(post.body)}</p>
 								</div>
 							</div>
 							<div class="myPostMeta">

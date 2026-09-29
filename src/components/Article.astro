@@ -2,13 +2,11 @@
 import ArticleContainer from './ArticleContainer.astro';
 import Hero from './Hero.astro';
 import FormattedDate from './FormattedDate.astro';
-import PostWarning from './PostWarning.astro';
 import PostReference from './PostReference.astro';
 import Image from './Image.astro';
 import { hasPostAssetFile, resolvePostFilePath } from '../utils/postAssetPath.js';
 
-const { title, author, pubDate, updatedDate, heroImage, category, headings, ref, isWarning } =
-	Astro.props;
+const { title, author, pubDate, updatedDate, heroImage, category, headings, ref } = Astro.props;
 const hasHeroImage = hasPostAssetFile({ src: heroImage, pubDate, category, type: 'assets' });
 const resolvedHeroImage = hasHeroImage
 	? resolvePostFilePath({ src: heroImage, pubDate, category, type: 'assets' })
@@ -40,8 +38,6 @@ const resolvedHeroImage = hasHeroImage
 			</div>
 		</div>
 	</div>
-	{isWarning && <PostWarning {title} slot="bq" />}
-
 	<!-- md파일 slot -->
 	<slot />
 	<!-- // -->
